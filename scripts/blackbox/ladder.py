@@ -19,7 +19,8 @@ Cadences: change (every change, CI-owned), closure (every task closure through
 make verify), release (once per release, before or right after the tag),
 nightly (CI schedule), manual (on demand, with the precondition listed).
 A release-cadence contract is overdue when its last verified version is not
-the top released version in CHANGELOG.md; a closure or nightly contract when
+the newest released heading in CHANGELOG.md (an Unreleased section above it
+is skipped); a closure or nightly contract when
 its record is older than the age limit; manual contracts are listed, never
 overdue. The registry is maintained by hand through --mark, so a stale record
 means "nobody wrote it down", which is the fact worth seeing."""
@@ -37,8 +38,6 @@ def top_release():
             m = re.match(r"^## (v\d+\.\d+\.\d+(?:-rc\d+)?)\s*$", line)
             if m:
                 return m.group(1)
-            if line.startswith("## Unreleased"):
-                return None
     return None
 
 

@@ -168,7 +168,11 @@
     "make verify",
     "release-rehearsal.yml"
    ],
-   "last_verified": null
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-13",
+    "evidence": "make axis-self on main 1b1acb8 (candidate as v0.1.0-rc20): RESULT 80 passed"
+   }
   },
   {
    "id": "realrepo",
@@ -212,7 +216,11 @@
    "runs_in": [
     "full-confidence.yml"
    ],
-   "last_verified": null
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-13",
+    "evidence": "make fuzz-smoke FUZZTIME=10s on main 030638f: 11 targets, no crash"
+   }
   },
   {
    "id": "coverage-floors",
@@ -223,7 +231,11 @@
    "runs_in": [
     "full-confidence.yml"
    ],
-   "last_verified": null
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-13",
+    "evidence": "make coverage-floors on main after merge b800a16: 14 packages at or above floors"
+   }
   },
   {
    "id": "longrun-refresh",

@@ -2,6 +2,56 @@
 
 All notable public changes to AOCI-CODE will be documented in this file.
 
+## Unreleased
+
+- Every `aoci` invocation built its command tree by decoding the embedded
+  localization manifest once per localized flag, several hundred times, about
+  half a second before the first byte of output. The decoded manifest is now
+  memoized once per process and the message reverse index is built once, so a
+  `config get` answers in a few milliseconds; human output is byte-identical,
+  pinned by the init, Guide, and help goldens.
+- Fuzzing the parsers that consume external bytes found and fixed four
+  defects: an index warning could carry invalid UTF-8 into Findings and JSON;
+  a line whose name is only Unicode whitespace lexed as an Entry with an empty
+  name; an Attestation that repeated a challenge ordinal was scored every time
+  it appeared; and `./C:/x` passed the drive-letter refusal of path
+  normalization. The carried openGauss connector panicked on a quoted
+  connection-string value ending in a backslash, from every parser entry
+  point; the canonical patch now refuses it and `internal/dbevidence` also
+  recovers at its boundary.
+- Tests: `internal/cli` tests run through the per-invocation executor instead
+  of package globals, so the package is order-independent (`-shuffle`) and
+  runs in seconds; `internal/testkit` holds the shared fixture, git, locale
+  and stdout helpers. Fault-injection tests cover the CAS rollback and
+  recovery states, the directory lock fallback, immutable archives, zero-write
+  closures, receipt storage, the Migration and Bootstrap codecs, replay
+  mismatches and safety approvals; `make coverage-floors` enforces per-package
+  statement-coverage floors for the safety core in full-confidence. Eleven
+  native fuzz targets with seed corpora run under `make fuzz-smoke` nightly.
+- Black box: conformance repeats its locale-dependent checks under zh-CN (53
+  checks); scenarios gain group H for the pre-write hook and `--group`/`--list`
+  (75 scenarios); lifecycle bring-up covers git submodules, the
+  `exclude_root_dirs` roles, `remove-entry`, the machine documents, and a
+  zh-CN twin lane. The upgrade axis gains a `downgrade` shape, in which every
+  earlier release reads a repository the binary under test wrote (80 checks
+  per release over ten shapes), `--self` runs the candidate as both the
+  released and the under-test binary before a tag exists (`make axis-self`,
+  also in `make verify` and the release rehearsal), and `--recent N` layers
+  CI: a push runs the newest three releases, the nightly run every release.
+  The real-repository harness is tracked as `scripts/blackbox/realrepo.py`.
+- `scripts/blackbox/ladder.json` registers every test contract that must be
+  run by name, with cadence, preconditions, and the last verification on
+  record; `make verify` ends by listing what is overdue and `make ladder`
+  prints it on demand.
+- Nightly gates: the long-running cognition refresh harness runs again
+  (`make longrun-refresh`; it had drifted from the Attestation schema and the
+  repair finding shape since August), the seven first-party benchmarks are
+  compared against an advisory baseline (`scripts/bench-compare.py`, a
+  warning annotation above 30 percent, results uploaded as an artifact), the
+  carried connector's own test suite runs against the openGauss container as
+  an advisory step (300 pass, one server-behaviour difference on year-zero
+  dates), and the page JavaScript tests get an explicit Node 22.
+
 ## v0.1.0-rc20
 
 Five user reports and two contributed pull requests: an E scale audit,
