@@ -149,12 +149,22 @@ jobs:
               | grep -E 'cognitiontxn|runmanifest|managedstate|cognitionbaseline|codebatch|total:' | tail -20
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      # 七个一方基准以 -benchtime=3x -count=3 跑, 每个结果取中位数, 与
+      # scripts/bench-baseline.json 比较; 慢过 30% 只打 ::warning:: 注解, 不红
+      # (共享 runner 噪声大)。唯一例外是 1000 对象的迁移夹具: 一次迭代约一分钟,
+      # 3x×3 本地实测 54 分钟, 所以它仍像从前一样只跑一次、单样本。基线仅供参考
+      # (advisory): 它是 2026-10-13 在一台开发机上生成的, runner 不是同一台机器。
+      # 换基线: scripts/bench-compare.py --update-baseline, 或拿本步上传的
+      # bench-results.json 走 --update-baseline --from-results。
       - name: large migration and 10,000-object planner performance fixtures
-        run: |
-          go test -run '^$' -bench '^BenchmarkMigrationScale$/^objects-(1|100|1000)$/' -benchtime=1x ./internal/migrationapply
-          go test -run '^$' -bench 'Benchmark(BootstrapScale|BootstrapPlannerScale)$' -benchtime=1x ./internal/bootstrapapply ./internal/cognitionplan
-          go test -run '^$' -bench 'Benchmark(DatabaseCognitionScale|ResolveImpactLargeIndependentSet|ResolveImpactTenThousandMixedSet)$' -benchtime=1x ./internal/dbcognition ./internal/cognition
-          go test -run '^$' -bench '^BenchmarkFacts1000CodeObjects$' -benchtime=1x ./internal/volumegovernance
+        run: python3 scripts/bench-compare.py
+      - name: upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bench-results
+          path: build/bench-results.json
+          if-no-files-found: ignore
 
   native-lifecycle:
     timeout-minutes: 45

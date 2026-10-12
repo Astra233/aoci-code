@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "generated_at": "2026-10-12T17:41:39+00:00",
+  "go_version": "go version go1.26.9 linux/amd64",
+  "goos_goarch": "linux/x86_64",
+  "benchtime": "3x",
+  "count": 3,
+  "cpu": 28,
+  "source": "scripts/bench-compare.py --update-baseline",
+  "benchmarks": {
+    "BenchmarkBootstrapPlannerScale/entries_1": {
+      "package": "github.com/aoci-spec/aoci-code/internal/cognitionplan",
+      "samples": 3,
+      "median_ns_per_op": 3680412.0
+    },
+    "BenchmarkBootstrapPlannerScale/entries_100": {
+      "package": "github.com/aoci-spec/aoci-code/internal/cognitionplan",
+      "samples": 3,
+      "median_ns_per_op": 8456967.0
+    },
+    "BenchmarkBootstrapPlannerScale/entries_1000": {
+      "package": "github.com/aoci-spec/aoci-code/internal/cognitionplan",
+      "samples": 3,
+      "median_ns_per_op": 50249845.0
+    },
+    "BenchmarkBootstrapPlannerScale/entries_10000": {
+      "package": "github.com/aoci-spec/aoci-code/internal/cognitionplan",
+      "samples": 3,
+      "median_ns_per_op": 466092951.0
+    },
+    "BenchmarkBootstrapScale/objects-1": {
+      "package": "github.com/aoci-spec/aoci-code/internal/bootstrapapply",
+      "samples": 3,
+      "median_ns_per_op": 75173009.0
+    },
+    "BenchmarkBootstrapScale/objects-100": {
+      "package": "github.com/aoci-spec/aoci-code/internal/bootstrapapply",
+      "samples": 3,
+      "median_ns_per_op": 134055126.0
+    },
+    "BenchmarkBootstrapScale/objects-1000": {
+      "package": "github.com/aoci-spec/aoci-code/internal/bootstrapapply",
+      "samples": 3,
+      "median_ns_per_op": 662740050.0
+    },
+    "BenchmarkBootstrapScale/objects-10000": {
+      "package": "github.com/aoci-spec/aoci-code/internal/bootstrapapply",
+      "samples": 3,
+      "median_ns_per_op": 5645573991.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_1/batch_plan": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 67147.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_1/database_volume_parse": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 1269717.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_1/status_and_binding_compare": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 135800.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_10/batch_plan": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 409824.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_10/database_volume_parse": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 1256087.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_10/status_and_binding_compare": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 626310.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_100/batch_plan": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 813793.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_100/database_volume_parse": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 2011318.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_100/status_and_binding_compare": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 6160932.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_1000/batch_plan": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 859963.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_1000/database_volume_parse": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 7489351.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_1000/status_and_binding_compare": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 57394490.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_10000/batch_plan": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 2285938.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_10000/database_volume_parse": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 69685614.0
+    },
+    "BenchmarkDatabaseCognitionScale/tables_10000/status_and_binding_compare": {
+      "package": "github.com/aoci-spec/aoci-code/internal/dbcognition",
+      "samples": 3,
+      "median_ns_per_op": 572315831.0
+    },
+    "BenchmarkFacts1000CodeObjects": {
+      "package": "github.com/aoci-spec/aoci-code/internal/volumegovernance",
+      "samples": 3,
+      "median_ns_per_op": 57194838.0
+    },
+    "BenchmarkMigrationScale/objects-1/completed-reversal": {
+      "package": "github.com/aoci-spec/aoci-code/internal/migrationapply",
+      "samples": 3,
+      "median_ns_per_op": 223457579.0
+    },
+    "BenchmarkMigrationScale/objects-1/pending-rollback": {
+      "package": "github.com/aoci-spec/aoci-code/internal/migrationapply",
+      "samples": 3,
+      "median_ns_per_op": 181673004.0
+    },
+    "BenchmarkMigrationScale/objects-1/prepare-apply-status": {
+      "package": "github.com/aoci-spec/aoci-code/internal/migrationapply",
+      "samples": 3,
+      "median_ns_per_op": 162271925.0
+    },
+    "BenchmarkMigrationScale/objects-1/resume": {
+      "package": "github.com/aoci-spec/aoci-code/internal/migrationapply",
+      "samples": 3,
+      "median_ns_per_op": 176784474.0
+    },
+    "BenchmarkMigrationScale/objects-100/completed-reversal": {
+      "package": "github.com/aoci-spec/aoci-code/internal/migrationapply",
+      "samples": 3,
+      "median_ns_per_op": 664277976.0
+    },
+    "BenchmarkMigrationScale/objects-100/pending-rollback": {
+      "package": "github.com/aoci-spec/aoci-code/internal/migrationapply",
+      "samples": 3,
+      "median_ns_per_op": 484443023.0
+    },
+    "BenchmarkMigrationScale/objects-100/prepare-apply-status": {
+      "package": "github.com/aoci-spec/aoci-code/internal/migrationapply",
+      "samples": 3,
+      "median_ns_per_op": 493066366.0
+    },
+    "BenchmarkMigrationScale/objects-100/resume": {
+      "package": "github.com/aoci-spec/aoci-code/internal/migrationapply",
+      "samples": 3,
+      "median_ns_per_op": 515902430.0
+    },
+    "BenchmarkMigrationScale/objects-1000/completed-reversal": {
+      "package": "github.com/aoci-spec/aoci-code/internal/migrationapply",
+      "samples": 1,
+      "median_ns_per_op": 51869760495.0
+    },
+    "BenchmarkMigrationScale/objects-1000/pending-rollback": {
+      "package": "github.com/aoci-spec/aoci-code/internal/migrationapply",
+      "samples": 1,
+      "median_ns_per_op": 55905054725.0
+    },
+    "BenchmarkMigrationScale/objects-1000/prepare-apply-status": {
+      "package": "github.com/aoci-spec/aoci-code/internal/migrationapply",
+      "samples": 1,
+      "median_ns_per_op": 47237625780.0
+    },
+    "BenchmarkMigrationScale/objects-1000/resume": {
+      "package": "github.com/aoci-spec/aoci-code/internal/migrationapply",
+      "samples": 1,
+      "median_ns_per_op": 55999640725.0
+    },
+    "BenchmarkResolveImpactLargeIndependentSet": {
+      "package": "github.com/aoci-spec/aoci-code/internal/cognition",
+      "samples": 3,
+      "median_ns_per_op": 16163307.0
+    },
+    "BenchmarkResolveImpactTenThousandMixedSet": {
+      "package": "github.com/aoci-spec/aoci-code/internal/cognition",
+      "samples": 3,
+      "median_ns_per_op": 16669148.0
+    }
+  }
+}
