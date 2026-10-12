@@ -17,6 +17,10 @@ the following narrowly scoped production hardening:
 - keep dial, TLS negotiation, authentication, and startup reads within the
   caller's connection context; and
 - reject truncated SHA256/SM3 authentication challenges and server-controlled
-  PBKDF2 iteration counts outside `1..1,000,000` before parsing or computation.
+  PBKDF2 iteration counts outside `1..1,000,000` before parsing or computation;
+  and
+- refuse a connection string whose quoted value ends in a backslash instead of
+  stepping past the end of the input, which panicked in every parser entry
+  point (found by fuzzing `ParseConfigStrict`).
 
 The upstream `LICENSE.md` remains authoritative for this vendored module.

@@ -717,6 +717,12 @@ func parseDSNSettings(s string) (map[string]string, error) {
 				}
 				if s[end] == '\\' {
 					end++
+					if end == len(s) {
+						// AOCI: a backslash as the last byte of a quoted value stepped
+						// past the end and the slice below panicked; refuse it like
+						// the unquoted branch does.
+						return nil, errors.New("invalid backslash")
+					}
 				}
 			}
 			if end == len(s) {

@@ -294,6 +294,29 @@ func TestCancelContextBoundsTLSStartupAndServerEOF(t *testing.T) {
 	}
 }
 
+// Locks: a quoted DSN value ending in a backslash is refused by every parser
+// entry point instead of panicking with a slice past the end of the input.
+func TestParseConfigStrictRejectsTrailingBackslashInQuotedValue(t *testing.T) {
+	for _, dsn := range []string{"='\\", "host='h\\", "host='h' password='p\\"} {
+		for name, parse := range map[string]func(string) error{
+			"ParseConfigStrict": func(s string) error { _, err := ParseConfigStrict(s); return err },
+			"ParseConfig":       func(s string) error { _, err := ParseConfig(s); return err },
+			"ParseURLToMap":     func(s string) error { _, err := ParseURLToMap(s); return err },
+		} {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						t.Fatalf("%s(%q) panicked: %v", name, dsn, r)
+					}
+				}()
+				if err := parse(dsn); err == nil {
+					t.Fatalf("%s(%q) accepted a value that ends in a backslash", name, dsn)
+				}
+			}()
+		}
+	}
+}
+
 func TestServerPBKDF2IterationBounds(t *testing.T) {
 	for _, iterations := range []int{1, maxServerPBKDF2Iterations} {
 		if err := validateServerPBKDF2Iterations(iterations); err != nil {

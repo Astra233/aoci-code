@@ -1,9 +1,9 @@
 diff --git a/AOCI-PATCHES.md b/AOCI-PATCHES.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..ebff90c6a4ac4a3dceb6f740227a337116f31dc5
+index 0000000..805fbe3
 --- /dev/null
 +++ b/AOCI-PATCHES.md
-@@ -0,0 +1,22 @@
+@@ -0,0 +1,26 @@
 +# AOCI connector patch set
 +
 +This module is based on the official
@@ -23,15 +23,19 @@ index 0000000000000000000000000000000000000000..ebff90c6a4ac4a3dceb6f740227a3371
 +- keep dial, TLS negotiation, authentication, and startup reads within the
 +  caller's connection context; and
 +- reject truncated SHA256/SM3 authentication challenges and server-controlled
-+  PBKDF2 iteration counts outside `1..1,000,000` before parsing or computation.
++  PBKDF2 iteration counts outside `1..1,000,000` before parsing or computation;
++  and
++- refuse a connection string whose quoted value ends in a backslash instead of
++  stepping past the end of the input, which panicked in every parser entry
++  point (found by fuzzing `ParseConfigStrict`).
 +
 +The upstream `LICENSE.md` remains authoritative for this vendored module.
 diff --git a/aoci_security_patch_test.go b/aoci_security_patch_test.go
 new file mode 100644
-index 0000000000000000000000000000000000000000..0cd1b7827a9bed253e48b9d452f89fd8ad806c88
+index 0000000..4dd1112
 --- /dev/null
 +++ b/aoci_security_patch_test.go
-@@ -0,0 +1,425 @@
+@@ -0,0 +1,448 @@
 +package pq
 +
 +import (
@@ -328,6 +332,29 @@ index 0000000000000000000000000000000000000000..0cd1b7827a9bed253e48b9d452f89fd8
 +	}
 +}
 +
++// Locks: a quoted DSN value ending in a backslash is refused by every parser
++// entry point instead of panicking with a slice past the end of the input.
++func TestParseConfigStrictRejectsTrailingBackslashInQuotedValue(t *testing.T) {
++	for _, dsn := range []string{"='\\", "host='h\\", "host='h' password='p\\"} {
++		for name, parse := range map[string]func(string) error{
++			"ParseConfigStrict": func(s string) error { _, err := ParseConfigStrict(s); return err },
++			"ParseConfig":       func(s string) error { _, err := ParseConfig(s); return err },
++			"ParseURLToMap":     func(s string) error { _, err := ParseURLToMap(s); return err },
++		} {
++			func() {
++				defer func() {
++					if r := recover(); r != nil {
++						t.Fatalf("%s(%q) panicked: %v", name, dsn, r)
++					}
++				}()
++				if err := parse(dsn); err == nil {
++					t.Fatalf("%s(%q) accepted a value that ends in a backslash", name, dsn)
++				}
++			}()
++		}
++	}
++}
++
 +func TestServerPBKDF2IterationBounds(t *testing.T) {
 +	for _, iterations := range []int{1, maxServerPBKDF2Iterations} {
 +		if err := validateServerPBKDF2Iterations(iterations); err != nil {
@@ -458,7 +485,7 @@ index 0000000000000000000000000000000000000000..0cd1b7827a9bed253e48b9d452f89fd8
 +func (a dummyAddr) Network() string { return string(a) }
 +func (a dummyAddr) String() string  { return string(a) }
 diff --git a/config.go b/config.go
-index 0911176c2782403a4d1f6aa6bf653d13a75b5da9..6455a95c07e5d0c9a8317d3728b7c2216c22b129 100644
+index 0911176..38e66fc 100644
 --- a/config.go
 +++ b/config.go
 @@ -247,6 +247,131 @@ func ParseConfig(connString string) (*Config, error) {
@@ -630,8 +657,21 @@ index 0911176c2782403a4d1f6aa6bf653d13a75b5da9..6455a95c07e5d0c9a8317d3728b7c221
  		}
  	}
  
+@@ -586,6 +717,12 @@ func parseDSNSettings(s string) (map[string]string, error) {
+ 				}
+ 				if s[end] == '\\' {
+ 					end++
++					if end == len(s) {
++						// AOCI: a backslash as the last byte of a quoted value stepped
++						// past the end and the slice below panicked; refuse it like
++						// the unquoted branch does.
++						return nil, errors.New("invalid backslash")
++					}
+ 				}
+ 			}
+ 			if end == len(s) {
 diff --git a/conn.go b/conn.go
-index 71854093780b423e0ea09d9bcb6f7d0dff4364df..c00db00472164a3b675ceb7a0cf7179934fbef26 100644
+index 7185409..c00db00 100644
 --- a/conn.go
 +++ b/conn.go
 @@ -56,6 +56,8 @@ const (
@@ -782,7 +822,7 @@ index 71854093780b423e0ea09d9bcb6f7d0dff4364df..c00db00472164a3b675ceb7a0cf71799
  // Any single quotes in name will be escaped. Any backslashes (i.e. "\") will be
  // replaced by two backslashes (i.e. "\\") and the C-style escape identifier
 diff --git a/conn_go18.go b/conn_go18.go
-index d6d7798250a24c50895d0f42fdcda21d252bf8ac..84551e3840068f88325618d435bd6884eac0db49 100644
+index d6d7798..84551e3 100644
 --- a/conn_go18.go
 +++ b/conn_go18.go
 @@ -141,7 +141,12 @@ func (cn *conn) watchCancel(ctx context.Context) func() {
@@ -832,7 +872,7 @@ index d6d7798250a24c50895d0f42fdcda21d252bf8ac..84551e3840068f88325618d435bd6884
  }
  
 diff --git a/connector.go b/connector.go
-index 04a5c1b6febfefefcc5de237122b78abaa1f7a81..bfc1323e2fc0974f141ca321e2497be8c25286f7 100644
+index 04a5c1b..bfc1323 100644
 --- a/connector.go
 +++ b/connector.go
 @@ -149,11 +149,11 @@ func (c *Connector) connect(ctx context.Context, config *Config) (cn *conn, err
@@ -921,7 +961,7 @@ index 04a5c1b6febfefefcc5de237122b78abaa1f7a81..bfc1323e2fc0974f141ca321e2497be8
  	var configs []*FallbackConfig
  
 diff --git a/logger.go b/logger.go
-index 1112ece39eb12fe925b3e9c9f26c4c7f75b0f79e..56207c65e3f045763c047a83a13dc4270643017c 100644
+index 1112ece..56207c6 100644
 --- a/logger.go
 +++ b/logger.go
 @@ -53,6 +53,7 @@ type Logger interface {
@@ -942,7 +982,7 @@ index 1112ece39eb12fe925b3e9c9f26c4c7f75b0f79e..56207c65e3f045763c047a83a13dc427
  	}
  	return l
 diff --git a/ssl.go b/ssl.go
-index bc3ecc55f20a6375e8937d87d56b073e2065f345..6e67a01c4f252654bc182a10a79400caf47c0168 100644
+index bc3ecc5..6e67a01 100644
 --- a/ssl.go
 +++ b/ssl.go
 @@ -18,6 +18,23 @@ import (
