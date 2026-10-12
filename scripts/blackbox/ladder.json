@@ -1,0 +1,303 @@
+{
+ "version": "test-ladder/v1",
+ "entries": [
+  {
+   "id": "make-fast",
+   "cadence": "change",
+   "command": "make fast",
+   "proves": "Tier-0: format, vet, dependency direction, public text, fast builds, every package but internal/cli under -short",
+   "preconditions": [],
+   "runs_in": [
+    "ci.yml",
+    "full-confidence.yml",
+    "make verify"
+   ],
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-10",
+    "evidence": ".aoci/dev-tools/make-fast-rc20-go1269.txt"
+   }
+  },
+  {
+   "id": "make-verify",
+   "cadence": "closure",
+   "command": "make verify BUILD_BIN=build/aoci-<label>",
+   "proves": "Every make full gate under -k (licenses, race, vuln, clean room, database integration) then the three black-box suites",
+   "preconditions": [
+    "Docker running for database-integration and the lifecycle database suite",
+    "base Go toolchain equal to go.mod"
+   ],
+   "runs_in": [
+    "make verify"
+   ],
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-10",
+    "evidence": ".aoci/dev-tools/make-verify-rc20-go1269.txt"
+   }
+  },
+  {
+   "id": "conformance",
+   "cadence": "closure",
+   "command": "python3 scripts/blackbox/mcp_conformance.py",
+   "proves": "MCP wire surface, nine tools, schemas, Overview chunk chain, attestation",
+   "preconditions": [
+    "host repository aligned (a dirty tree fakes attestation failures)"
+   ],
+   "runs_in": [
+    "ci.yml",
+    "full-confidence.yml",
+    "make verify"
+   ],
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-10",
+    "evidence": ".aoci/dev-tools/make-verify-rc20-go1269.txt RESULT: 46 passed"
+   }
+  },
+  {
+   "id": "scenarios",
+   "cadence": "closure",
+   "command": "python3 scripts/blackbox/mcp_scenarios.py",
+   "proves": "Hostile handling: cursors, write rejection, crashes, races, Scope Change, activation, batches, page",
+   "preconditions": [
+    "about ten minutes",
+    "a real pty for the tty scenarios"
+   ],
+   "runs_in": [
+    "ci.yml",
+    "full-confidence.yml",
+    "make verify"
+   ],
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-10",
+    "evidence": "SCENARIOS: 65 PASS"
+   }
+  },
+  {
+   "id": "lifecycle-core",
+   "cadence": "closure",
+   "command": "python3 scripts/blackbox/mcp_lifecycle.py --suites bringup,incremental,governance,scale",
+   "proves": "Init-to-realignment lifecycles on the frozen fixtures",
+   "preconditions": [],
+   "runs_in": [
+    "ci.yml",
+    "full-confidence.yml",
+    "make verify"
+   ],
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-10",
+    "evidence": "LIFECYCLE PASS 73 CHAR 2"
+   }
+  },
+  {
+   "id": "lifecycle-database",
+   "cadence": "closure",
+   "command": "python3 scripts/blackbox/mcp_lifecycle.py --suites database",
+   "proves": "Database Evidence and Database Cognition lifecycle against a real MySQL container",
+   "preconditions": [
+    "Docker running"
+   ],
+   "runs_in": [
+    "full-confidence.yml",
+    "make verify"
+   ],
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-10",
+    "evidence": "LIFECYCLE PASS 73 CHAR 2 (database track included)"
+   }
+  },
+  {
+   "id": "lifecycle-model",
+   "cadence": "manual",
+   "command": "python3 scripts/blackbox/mcp_lifecycle.py --suites model --model <name>",
+   "proves": "A real AI agent drives the authoring lifecycle end to end",
+   "preconditions": [
+    "a configured agent host and model",
+    "budget"
+   ],
+   "runs_in": [],
+   "last_verified": null
+  },
+  {
+   "id": "upgrade-axis-released",
+   "cadence": "release",
+   "command": "AOCI_BIN=<released binary> python3 scripts/blackbox/mcp_upgrade.py --versions <previous>,<this>",
+   "proves": "The published binary keeps every previously released repository governable, and its own repositories as the newest old version",
+   "preconditions": [
+    "published release assets",
+    "AOCI_UPGRADE_CACHE with the cached release binaries"
+   ],
+   "runs_in": [],
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-10",
+    "evidence": ".aoci/dev-tools/axis-rc20-release.txt RESULT: 144 passed"
+   }
+  },
+  {
+   "id": "upgrade-axis-full",
+   "cadence": "nightly",
+   "command": "python3 scripts/blackbox/mcp_upgrade.py",
+   "proves": "Every CHANGELOG release against the binary under test",
+   "preconditions": [
+    "network or the cache for the release binaries",
+    "about 90 seconds per version when run alone"
+   ],
+   "runs_in": [
+    "full-confidence.yml"
+   ],
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-10",
+    "evidence": "full-confidence 37961215209 RESULT: 1440 passed"
+   }
+  },
+  {
+   "id": "axis-self",
+   "cadence": "release",
+   "command": "make axis-self BUILD_BIN=build/aoci-<label>",
+   "proves": "The release candidate survives the axis as both the released and the under-test binary, so a shape whose premise expires with this version fails before the tag, not after",
+   "preconditions": [
+    "the candidate build"
+   ],
+   "runs_in": [
+    "make verify",
+    "release-rehearsal.yml"
+   ],
+   "last_verified": null
+  },
+  {
+   "id": "realrepo",
+   "cadence": "release",
+   "command": "python3 scripts/blackbox/realrepo.py RuoYi build/aoci-<label> --label=<label>; python3 scripts/blackbox/realrepo.py excalidraw build/aoci-<label> --label=<label>",
+   "proves": "Transport budget, batch rounds, update wave, optimization and hook on two real trees with a planted ignored node_modules; compare rounds and bytes against the previous release record",
+   "preconditions": [
+    "local clones under $AOCI_REALREPO_SOURCES (default ~/aoci-demo-cand)"
+   ],
+   "runs_in": [],
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-09",
+    "evidence": ".aoci/dev-tools/realrepo-rc20.txt RuoYi 26 rounds 23924 B, excalidraw 34 rounds 23862 B"
+   }
+  },
+  {
+   "id": "opengauss-replay",
+   "cadence": "manual",
+   "command": "go test -tags=integration -run '^TestOpenGaussRealCatalogCollectionAndDrift$' ./internal/dbevidence",
+   "proves": "Catalog collection and drift against a real openGauss 6.0.5 container with verify-full TLS",
+   "preconditions": [
+    "the opengauss:6.0.5 image loaded in Docker",
+    "AOCI_TEST_OPENGAUSS_* environment"
+   ],
+   "runs_in": [
+    "full-confidence.yml"
+   ],
+   "last_verified": {
+    "version": "v0.1.0-rc4",
+    "date": "2026-08-13",
+    "evidence": "local replay PASS; nightly CI job opengauss-integration since"
+   }
+  },
+  {
+   "id": "fuzz-smoke",
+   "cadence": "nightly",
+   "command": "make fuzz-smoke FUZZTIME=30s",
+   "proves": "The index, cursor, strict JSON, path and connector parsers never panic on arbitrary bytes",
+   "preconditions": [],
+   "runs_in": [
+    "full-confidence.yml"
+   ],
+   "last_verified": null
+  },
+  {
+   "id": "coverage-floors",
+   "cadence": "nightly",
+   "command": "make coverage-floors",
+   "proves": "Statement coverage of the safety-core packages never drops below the recorded floor",
+   "preconditions": [],
+   "runs_in": [
+    "full-confidence.yml"
+   ],
+   "last_verified": null
+  },
+  {
+   "id": "longrun-refresh",
+   "cadence": "nightly",
+   "command": "make longrun-refresh",
+   "proves": "Long-lived cognition refresh scenarios over two isolated repositories",
+   "preconditions": [],
+   "runs_in": [
+    "full-confidence.yml"
+   ],
+   "last_verified": null
+  },
+  {
+   "id": "bench-compare",
+   "cadence": "nightly",
+   "command": "python3 scripts/bench-compare.py",
+   "proves": "The seven first-party benchmarks against the committed baseline (advisory)",
+   "preconditions": [
+    "a quiet machine; CI runners are noisy"
+   ],
+   "runs_in": [
+    "full-confidence.yml"
+   ],
+   "last_verified": null
+  },
+  {
+   "id": "clean-room-smoke",
+   "cadence": "closure",
+   "command": "bash scripts/release/clean-room-smoke.sh",
+   "proves": "A built binary initializes and guides an isolated repository with the production role split",
+   "preconditions": [],
+   "runs_in": [
+    "make full",
+    "make verify",
+    "full-confidence.yml"
+   ],
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-10",
+    "evidence": ".aoci/dev-tools/make-verify-rc20-go1269.txt"
+   }
+  },
+  {
+   "id": "native-lifecycle",
+   "cadence": "nightly",
+   "command": "go test -count=1 ./internal/fs ./internal/bootstrapapply ./internal/migrationapply ./internal/cognitionplan ./internal/scopechange ./internal/managedscope ./internal/cognitionbudget ./internal/onboarding ./internal/mcptools on macOS and Windows",
+   "proves": "Filesystem primitives and transactions on the native platforms",
+   "preconditions": [
+    "macOS and Windows runners"
+   ],
+   "runs_in": [
+    "full-confidence.yml"
+   ],
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-10",
+    "evidence": "full-confidence 37961215209 native-lifecycle x3 success"
+   }
+  },
+  {
+   "id": "check-public-text",
+   "cadence": "change",
+   "command": "bash scripts/check-public-text.sh",
+   "proves": "No prohibited claim in release-facing text",
+   "preconditions": [],
+   "runs_in": [
+    "make fast",
+    "ci.yml"
+   ],
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-10",
+    "evidence": "safety: clean, 439 files"
+   }
+  }
+ ]
+}

@@ -26,6 +26,8 @@ alone before, with every fast gate green.
 | `init`, `scan`, authoring lifecycle, Managed Scope roles | `python3 scripts/blackbox/mcp_lifecycle.py` |
 | Machine defaults, release assets, licensing, dependencies | `make full` |
 | Public text in `README*`, `docs/`, or `spec/` | `bash scripts/check-public-text.sh` |
+| Cutting a release | `make axis-self` on the candidate build before the tag; `python3 scripts/blackbox/realrepo.py` on RuoYi and excalidraw; the released binary over the previous and this version of the upgrade axis after the tag |
+| Adding or changing a suite or harness that no gate runs by itself | register or update it in `scripts/blackbox/ladder.json`; `make ladder` lists what is overdue |
 
 The three black-box suites drive a built binary from outside the process and
 have their own preconditions; `scripts/blackbox/README.md` documents them.

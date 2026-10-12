@@ -192,8 +192,16 @@ verify:
 	AOCI_REPO="$(CURDIR)" AOCI_BIN="$(abspath $(BUILD_BIN))" python3 scripts/blackbox/mcp_conformance.py || status=1; \
 	AOCI_REPO="$(CURDIR)" AOCI_BIN="$(abspath $(BUILD_BIN))" python3 scripts/blackbox/mcp_scenarios.py || status=1; \
 	AOCI_REPO="$(CURDIR)" AOCI_BIN="$(abspath $(BUILD_BIN))" python3 scripts/blackbox/mcp_lifecycle.py || status=1; \
+	python3 scripts/blackbox/ladder.py --check; \
 	if [ $$status -eq 0 ]; then echo "★ make verify passed (all deterministic gates) ★"; fi; \
 	exit $$status
+
+# The run-by-name test ladder: contracts that no gate runs for you (release-time
+# axis runs, real-repository tracks, Docker-only suites, nightly gates) with
+# their last verification on record. --check lists what is overdue; it never
+# fails on its own, a closure reads it and decides. Register every new suite.
+ladder:
+	@python3 scripts/blackbox/ladder.py --check
 
 # Compatibility alias retained for existing operators and automation.
 check: full

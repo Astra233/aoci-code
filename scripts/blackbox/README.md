@@ -144,3 +144,44 @@ Environment overrides for every suite: `AOCI_REPO` (repository root),
 - Conformance and scenarios also serve as an executable compatibility check
   for alternative implementations: point `AOCI_BIN` at any binary that claims
   the public contracts in `spec/public/` and run them unchanged.
+
+## Run-by-name ladder
+
+`ladder.json` is the registry of every test contract that someone must run by
+name because no gate runs it for them: the release-time axis run with the
+published binary, the real-repository track, the Docker-only database suite,
+the nightly-only gates, and the model track. Each entry records its command,
+cadence (`change`, `closure`, `release`, `nightly`, `manual`), preconditions,
+and the last verification on record. `make verify` ends by printing the
+overdue entries, and `make ladder` prints them on demand:
+
+```bash
+python3 scripts/blackbox/ladder.py --check            # what is overdue or never recorded
+python3 scripts/blackbox/ladder.py --list             # the whole registry
+python3 scripts/blackbox/ladder.py --mark realrepo --version v0.1.0-rc21 --evidence "RuoYi 26 rounds"
+```
+
+The registry is kept by hand, so a stale record means nobody wrote the run
+down; that is the fact worth seeing. A new suite or harness is registered here
+in the same change that adds it, and the AOCI index Entry of the registry is
+how an agent finds the list at all.
+
+## Real-repository track
+
+`realrepo.py` clones a real third-party repository locally, initializes it,
+authors template Entries through Maintain and `aoci_update_entry` until
+aligned, touches a wave of files and re-aligns, runs one cognition
+optimization batch, and probes the PreToolUse hook on an indexed file, with
+every Maintain response measured against the transport budget. Template
+Entries carry no semantics, so the track proves transport, batching, alignment
+and timing on real trees, never cognition quality. It is a release-cadence
+ladder entry, not a CI gate: it needs local clones and a few minutes per
+repository. The release record compares RuoYi and excalidraw against the
+previous release.
+
+```bash
+export AOCI_REALREPO_SOURCES=~/aoci-demo-cand        # directory holding the clones
+python3 scripts/blackbox/realrepo.py RuoYi build/aoci --label=rc21 --ignored-tree=3000
+python3 scripts/blackbox/realrepo.py /path/to/any/clone build/aoci --label=rc21
+```
+
