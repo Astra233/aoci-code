@@ -143,6 +143,12 @@ jobs:
           go test -run '^$' -bench 'Benchmark(BootstrapScale|BootstrapPlannerScale)$' -benchtime=1x ./internal/bootstrapapply ./internal/cognitionplan
           go test -run '^$' -bench 'Benchmark(DatabaseCognitionScale|ResolveImpactLargeIndependentSet|ResolveImpactTenThousandMixedSet)$' -benchtime=1x ./internal/dbcognition ./internal/cognition
           go test -run '^$' -bench '^BenchmarkFacts1000CodeObjects$' -benchtime=1x ./internal/volumegovernance
+      # Fuzz smoke: every native fuzz target for 30 seconds, nightly and on
+      # dispatch only, so a push run never waits for it. A crash fails the job
+      # and the minimized input is reported for the regression commit.
+      - name: fuzz smoke
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: make fuzz-smoke FUZZTIME=30s
 
   native-lifecycle:
     timeout-minutes: 45

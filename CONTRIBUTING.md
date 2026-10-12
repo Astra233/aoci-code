@@ -17,7 +17,8 @@ make fast
 Use focused tests during development. `make fast` is the ordinary contribution
 gate. `make full` is required for stable freezes and high-risk changes when
 requested by maintainers. `make release-check` is reserved for package
-rehearsal.
+rehearsal. `make fuzz-smoke` runs every native Go fuzz target for `FUZZTIME`
+(default `20s`) and is part of the nightly full-confidence run.
 
 "The Go version declared in `go.mod`" means the *base* installation, not what
 `go version` prints. Under the default `GOTOOLCHAIN=auto` the go command

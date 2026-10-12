@@ -37,7 +37,7 @@ OPENGAUSS_PATCH_GO_FILES := \
 	third_party/openGauss-connector-go-pq/ssl.go \
 	third_party/openGauss-connector-go-pq/aoci_security_patch_test.go
 
-.PHONY: build test fast fast-test fast-builds full verify release-check race vuln database-integration clean-room-smoke example-test vet fmt fmt-check safety check-deps toolchain-preflight opengauss-connector licenses textassets-check update-goldens staticcheck check cross clean
+.PHONY: build test fast fast-test fast-builds full verify release-check race vuln fuzz-smoke database-integration clean-room-smoke example-test vet fmt fmt-check safety check-deps toolchain-preflight opengauss-connector licenses textassets-check update-goldens staticcheck check cross clean
 
 # 静态编译单二进制,使用Go目标平台的原生可执行文件后缀。
 build:
@@ -169,6 +169,42 @@ vuln:
 	@VULN=$$(command -v govulncheck 2>/dev/null || echo "$$($(GO_BIN) env GOPATH)/bin/govulncheck"); \
 	if [ ! -x "$$VULN" ]; then echo "govulncheck is required for make full"; exit 1; fi; \
 	"$$VULN" ./...
+
+# Native Go fuzz targets over the readers of external bytes: index text and
+# Entry lines, the Overview cursor and Attestation inputs, the strict JSON
+# codecs, repository-relative paths and exclude patterns, and the openGauss
+# DSN. go test accepts one -fuzz pattern per package invocation, so each target
+# runs alone for FUZZTIME; a crash fails the gate and leaves its minimized input
+# under the package's testdata/fuzz directory for the regression commit. The
+# list is checked against the Fuzz functions in the tree so a new target cannot
+# be left out silently. Nightly full-confidence runs this with FUZZTIME=30s.
+FUZZTIME ?= 20s
+FUZZ_TARGETS := \
+	./internal/index:FuzzParse \
+	./internal/index:FuzzValidateEntryLine \
+	./internal/index:FuzzParseTags \
+	./internal/mcptools:FuzzDecodeOverviewCursor \
+	./internal/mcptools:FuzzOverviewCursorChain \
+	./internal/mcptools:FuzzOverviewAttestationInput \
+	./internal/jsonstrict:FuzzRejectDuplicateKeys \
+	./internal/bootstrapapply:FuzzStrictDecode \
+	./internal/fs:FuzzNormalizeRelPath \
+	./internal/fs:FuzzMatchExcludePattern \
+	./internal/dbevidence:FuzzParseConfigStrict
+
+fuzz-smoke:
+	@listed=""; for target in $(FUZZ_TARGETS); do listed="$$listed $${target##*:}"; done; \
+	for found in $$(grep -rhoE '^func Fuzz[A-Za-z0-9_]+\(' --include='*_test.go' cmd internal | sed -E 's/^func (Fuzz[A-Za-z0-9_]+)\(/\1/' | sort -u); do \
+		case " $$listed " in *" $$found "*) ;; *) echo "fuzz-smoke: $$found is declared in the tree but missing from FUZZ_TARGETS" >&2; exit 1;; esac; \
+	done; \
+	status=0; \
+	for target in $(FUZZ_TARGETS); do \
+		pkg=$${target%%:*}; name=$${target##*:}; \
+		echo "fuzz-smoke: $$name in $$pkg for $(FUZZTIME)"; \
+		$(GO_BIN) test -run '^$$' -fuzz "^$$name$$" -fuzztime=$(FUZZTIME) "$$pkg" || { status=1; echo "fuzz-smoke: $$name crashed or failed" >&2; }; \
+	done; \
+	if [ $$status -eq 0 ]; then echo "fuzz-smoke: every fuzz target ran $(FUZZTIME) without a crash"; fi; \
+	exit $$status
 
 # The integration tests require the explicit temporary database environment.
 # An unconfigured local run reports skips; remote Full Confidence supplies both engines.
