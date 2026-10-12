@@ -1,0 +1,4 @@
+go test fuzz v1
+string("drift.go")
+string("drift.go[CG7S]: F:Classifies Database Evidence source identity and per-table structural drift against the independent accepted Baseline | R:code:internal/dbevidence/store.go,code:internal/dbevidence/types.go | A:CompareSnapshot,BuildEvidenceBundle | S:Comparison never advances the Baseline; table changes name only canonical structural components, and Evidence bundles contain no model-generated semantics or business-row data")
+string("")

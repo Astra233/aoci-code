@@ -1,0 +1,4 @@
+go test fuzz v1
+string("tools_read_search.go")
+string("tools_read_search.go[CG7S]: F:Searches Legacy or Volume cognition while preserving canonical object identities | R:- | A:- | S:-")
+string("")

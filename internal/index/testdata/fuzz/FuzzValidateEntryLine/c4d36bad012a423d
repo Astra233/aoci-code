@@ -1,0 +1,4 @@
+go test fuzz v1
+string("repair_findings.go")
+string("repair_findings.go[CG7T]: F:Stably orders public Repair Findings by domain, path, field, rule code, and integer candidate position | R:code:internal/cognition/types.go | A:SortRepairFindings | S:CandidateIndex remains the caller's immutable 1-based position in the complete batch and is compared numerically, not lexically")
+string("")

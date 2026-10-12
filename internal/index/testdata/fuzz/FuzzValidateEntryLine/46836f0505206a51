@@ -1,0 +1,4 @@
+go test fuzz v1
+string("schema.go")
+string("schema.go[CG7T]: F:Derives closed JSON Schema documentation and test artifacts for versioned migration contracts from Go types | R:code:internal/migrationapply/types.go | A:JSONSchemas | S:The strict decoder and typed validators, not these derived schemas, remain executable authority; required fields follow omitempty and each schema const-binds its contract version")
+string("")

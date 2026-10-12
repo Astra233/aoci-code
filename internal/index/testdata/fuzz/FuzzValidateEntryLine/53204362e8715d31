@@ -1,0 +1,4 @@
+go test fuzz v1
+string("entries_worker.go")
+string("entries_worker.go[CG7M]: F:Prepares, prompts, validates, and persists one model-authored Entry draft with token accounting and an optional prompt snapshot | R:code:internal/workflow/entries.go,code:internal/prompt/entry.go,code:internal/draft/draft.go | A:- | S:Validation warnings do not block draft persistence; default redacted snapshots replace only the source body with its hash and length, while full mode retains source bytes")
+string("")

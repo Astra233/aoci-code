@@ -68,11 +68,19 @@ var (
 )
 
 // matchEntryLine is the one entry-line lexer: legacy first, extended second.
+// A match whose name trims to nothing is not an Entry: RE2's \s is ASCII
+// while TrimSpace is Unicode, so a line beginning with a vertical tab or a
+// no-break space before "[" lexes as an Entry whose file name is empty and
+// whose RelPath would collapse to its section directory.
 func matchEntryLine(line string) []string {
-	if m := consistencyEntryRe.FindStringSubmatch(line); m != nil {
-		return m
+	m := consistencyEntryRe.FindStringSubmatch(line)
+	if m == nil {
+		m = extendedEntryRe.FindStringSubmatch(line)
 	}
-	return extendedEntryRe.FindStringSubmatch(line)
+	if m != nil && strings.TrimSpace(m[1]) == "" {
+		return nil
+	}
+	return m
 }
 
 // EntryTagSpan locates the tag of an Entry line for every consumer that needs it
@@ -239,7 +247,7 @@ func Parse(text string) (*Document, []Warning) {
 		if m == nil {
 			// 形似条目但不匹配(如含 [ 却缺 ]: 结构)时给出警告,便于人工排查
 			if strings.Contains(line, "[") && strings.Contains(line, "]:") {
-				warnings = append(warnings, Warning{LineNo: lineNo, Msg: "疑似条目行但未通过条目正则: " + truncateForWarn(line)})
+				warnings = append(warnings, newWarning(lineNo, "疑似条目行但未通过条目正则: "+truncateForWarn(line)))
 			}
 			continue
 		}
@@ -269,17 +277,17 @@ func Parse(text string) (*Document, []Warning) {
 		switch {
 		case twoReadings:
 			if prev, ok := seenInFirst[key]; ok {
-				warnings = append(warnings, Warning{LineNo: lineNo, Msg: "重复条目: 与第 " + strconv.Itoa(prev) + " 行同段同名(" + filename + ")"})
+				warnings = append(warnings, newWarning(lineNo, "重复条目: 与第 "+strconv.Itoa(prev)+" 行同段同名("+filename+")"))
 			} else {
 				seenInFirst[key] = lineNo
 			}
 		default:
 			if prev, ok := seen[key]; ok {
-				warnings = append(warnings, Warning{LineNo: lineNo, Msg: "重复条目: 与第 " + strconv.Itoa(prev) + " 行同段同名(" + filename + ")"})
+				warnings = append(warnings, newWarning(lineNo, "重复条目: 与第 "+strconv.Itoa(prev)+" 行同段同名("+filename+")"))
 			} else {
 				seen[key] = lineNo
 				if prev, ok := seenInFirst[key]; ok {
-					acrossReadings = append(acrossReadings, Warning{LineNo: lineNo, Msg: "重复条目: 与第 " + strconv.Itoa(prev) + " 行同段同名(" + filename + ")"})
+					acrossReadings = append(acrossReadings, newWarning(lineNo, "重复条目: 与第 "+strconv.Itoa(prev)+" 行同段同名("+filename+")"))
 				}
 			}
 		}
@@ -711,6 +719,15 @@ func FindEntriesByFilename(doc *Document, filename string) []*Entry {
 		}
 	}
 	return out
+}
+
+// newWarning builds a Warning whose text is always valid UTF-8. The fragments
+// quoted from the index (a suspicious line, a duplicated file name) carry
+// whatever bytes the file holds, and a Warning travels on into JSON responses
+// and CLI lines; invalid bytes become U+FFFD here, once, instead of being
+// coerced or refused downstream.
+func newWarning(lineNo int, msg string) Warning {
+	return Warning{LineNo: lineNo, Msg: strings.ToValidUTF8(msg, "\uFFFD")}
 }
 
 // truncateForWarn 警告文案截断,防超长行刷屏(按 rune 截断防切碎多字节字符)

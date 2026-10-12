@@ -1,0 +1,4 @@
+go test fuzz v1
+string("query.go")
+string("query.go[CG7M]: F:Parses and evaluates keyword/tag Entry searches and renders localized session runtime rules with machine cognition limits | R:code:internal/index/parser.go,code:textassets/catalog.go,code:internal/machinecontract/numeric.go | A:ParseTagFilter,Search,BuildRuntimeRules | S:Only C accepts >= filters; runtime rules come from the active Locale asset and append validated refresh/chunk limits, never model-generated repository semantics")
+string("")

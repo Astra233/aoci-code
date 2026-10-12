@@ -1,0 +1,4 @@
+go test fuzz v1
+string("index_entries_auto_recovery.go")
+string("index_entries_auto_recovery.go[CG7S]: F:Closes retained recovery for an already applied Entries Auto batch from bound Application, draft, and full-candidate evidence | R:code:internal/draft/manifest_decode.go,code:internal/mcptools/tools_write_batch.go | A:- | S:AppliedAt alone is not completion proof; retry may only validate the successful Application and remove its retained recovery receipt, never rerun the formal Apply")
+string("")

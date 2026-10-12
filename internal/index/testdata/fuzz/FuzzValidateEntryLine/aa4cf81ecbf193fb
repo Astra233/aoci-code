@@ -1,0 +1,4 @@
+go test fuzz v1
+string("locale_migration.go")
+string("locale_migration.go[CG7L]: F:Prepares resumable Locale-migration receipts and validates that staged Header and Entry changes preserve formal topology and source-backed technical facts | R:code:internal/config/config.go,code:internal/index/parser.go,code:internal/hooks/installer.go | A:- | S:Preparation changes configuration only; ordinary Entries remain byte-identical until source-bound Entry stages, while legacy .aoci governance Entries are removed during Header reclassification")
+string("")

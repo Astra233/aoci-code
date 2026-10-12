@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("{\"model_cognition_attestation\":{\"challenge_answers\":[{\"ordinal\":1,\"object_identity\":\"src/file-0001.go\",\"tag\":\"IM7S\",\"core_f\":\"preserve object 0001\"},{\"ordinal\":1,\"object_identity\":\"src/file-0001.go\",\"tag\":\"IM7S\",\"core_f\":\"preserve object 0001\"}]}}")

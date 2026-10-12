@@ -1,0 +1,4 @@
+go test fuzz v1
+string("index_agent_manifest_guard.go")
+string("index_agent_manifest_guard.go[CG7S]: F:Validates Host-Agent draft Manifest kind, provider, audit identity, intent, and canonical digest fields before Apply | R:code:internal/draft/draft.go,code:internal/cli/index_agent_apply_guard.go | A:- | S:Only generation_source=host_agent uses this strict guard; Endpoint and historical drafts retain compatibility, and damaged audit state is distinct from a superseded Plan")
+string("")

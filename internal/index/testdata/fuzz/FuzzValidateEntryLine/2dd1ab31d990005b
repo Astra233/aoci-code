@@ -1,0 +1,4 @@
+go test fuzz v1
+string("doctor.go")
+string("doctor.go[CG7M]: F:Diagnoses repository and cognition assets, Agent integrations, AI configuration, data destination, and optional endpoint readiness | R:code:internal/config/config.go,code:internal/hooks/status.go,code:internal/llm/client.go | A:aoci doctor | S:Endpoint probing is opt-in via --net and never prints the secret's value; the exclude-gap hint reads raw team JSON, counts exclude_root_dirs as declared, and is silent when exclude_dirs is absent")
+string("")

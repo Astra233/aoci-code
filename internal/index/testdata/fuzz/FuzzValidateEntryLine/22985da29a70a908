@@ -1,0 +1,4 @@
+go test fuzz v1
+string("detach_unix.go")
+string("detach_unix.go[CG3T]: F:Puts the page in its own session on Unix and asks it to stop with SIGTERM so it unregisters itself | R:code:internal/ui/detach.go | A:- | S:-")
+string("")
