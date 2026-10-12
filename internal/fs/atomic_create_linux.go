@@ -20,7 +20,7 @@ import (
 // exchange path has a declared "no safe primitive here" answer for platforms
 // that lack one, and this path did not.
 func publishAtomicCreate(source, target string) error {
-	err := unix.Renameat2(unix.AT_FDCWD, source, unix.AT_FDCWD, target, unix.RENAME_NOREPLACE)
+	err := renameat2NoReplace(source, target)
 	if err == nil || !renameat2FlagUnsupported(err) {
 		return err
 	}
@@ -30,6 +30,13 @@ func publishAtomicCreate(source, target string) error {
 		return fmt.Errorf("renameat2 refused the no-replace flag (%w) and the link fallback failed: %w", err, fallbackErr)
 	}
 	return nil
+}
+
+// renameat2NoReplace is the primitive behind publishAtomicCreate. It is a
+// variable only so a test can make it answer the way DrvFs does (EINVAL) on a
+// filesystem that honours the flag; production never reassigns it.
+var renameat2NoReplace = func(source, target string) error {
+	return unix.Renameat2(unix.AT_FDCWD, source, unix.AT_FDCWD, target, unix.RENAME_NOREPLACE)
 }
 
 // publishAtomicCreateByLink is the same guarantee built from two older calls.
