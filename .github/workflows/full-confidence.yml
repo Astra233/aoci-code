@@ -68,6 +68,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      # make full 跑整个模块的 go test 与 race; internal/ui 的页面 JavaScript 回归测试
+      # 在没有 node 时静默跳过, 这里显式装 Node 22 LTS。
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
       - name: install pinned analysis tools
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
@@ -135,6 +140,13 @@ jobs:
             python3 scripts/blackbox/mcp_upgrade.py
           fi
           git diff --exit-code
+      # 长程认知刷新黑盒(R67-A): Go runner 起真二进制的 stdio MCP, 在两个一次性仓库
+      # 上跑阈值实验与压缩恢复实验。只在夜间与手动触发时跑; 推送触发不跑。
+      - name: long-running cognition refresh black box
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          make longrun-refresh
+          git diff --exit-code
       # 覆盖率是可见性而非门禁: 让安全核心包的薄弱处暴露在构建摘要里。
       - name: coverage snapshot
         run: |
@@ -150,12 +162,22 @@ jobs:
       # 即失败。复用上一步的 -short profile, 不再跑第二遍套件。
       - name: coverage floors
         run: bash scripts/check-coverage-floors.sh --profile "$RUNNER_TEMP/coverage.out"
+      # 七个一方基准以 -benchtime=3x -count=3 跑, 每个结果取中位数, 与
+      # scripts/bench-baseline.json 比较; 慢过 30% 只打 ::warning:: 注解, 不红
+      # (共享 runner 噪声大)。唯一例外是 1000 对象的迁移夹具: 一次迭代约一分钟,
+      # 3x×3 本地实测 54 分钟, 所以它仍像从前一样只跑一次、单样本。基线仅供参考
+      # (advisory): 它是 2026-10-13 在一台开发机上生成的, runner 不是同一台机器。
+      # 换基线: scripts/bench-compare.py --update-baseline, 或拿本步上传的
+      # bench-results.json 走 --update-baseline --from-results。
       - name: large migration and 10,000-object planner performance fixtures
-        run: |
-          go test -run '^$' -bench '^BenchmarkMigrationScale$/^objects-(1|100|1000)$/' -benchtime=1x ./internal/migrationapply
-          go test -run '^$' -bench 'Benchmark(BootstrapScale|BootstrapPlannerScale)$' -benchtime=1x ./internal/bootstrapapply ./internal/cognitionplan
-          go test -run '^$' -bench 'Benchmark(DatabaseCognitionScale|ResolveImpactLargeIndependentSet|ResolveImpactTenThousandMixedSet)$' -benchtime=1x ./internal/dbcognition ./internal/cognition
-          go test -run '^$' -bench '^BenchmarkFacts1000CodeObjects$' -benchtime=1x ./internal/volumegovernance
+        run: python3 scripts/bench-compare.py
+      - name: upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bench-results
+          path: build/bench-results.json
+          if-no-files-found: ignore
       # Fuzz smoke: every native fuzz target for 30 seconds, nightly and on
       # dispatch only, so a push run never waits for it. A crash fails the job
       # and the minimized input is reported for the regression commit.
@@ -399,6 +421,62 @@ jobs:
           test_name=TestOpenGaussRealCatalogCollectionAndDrift
           go test -tags=integration -list "^${test_name}$" ./internal/dbevidence | grep -Fx "${test_name}"
           go test -v -tags=integration -count=1 -run "^${test_name}$" ./internal/dbevidence
+      # 上游 connector 自带 211 个测试, 此前没有任何门禁对着真库跑过它们;
+      # make opengauss-connector 只跑七个 AOCI 补丁测试。这里借同一个容器跑完整
+      # 上游套件: conn_test.go 的 openTestConn 读 TEST_CONN_STRING, 本作业已经导出的
+      # 管理员 DSN(127.0.0.1:5433, gaussdb, sslmode=verify-full + sslrootcert)原样可用;
+      # SSL 子集另需 PQGOSSLTESTS=1 与 PQSSLCERTTEST_PATH 下的上游证书, 未设即跳过。
+      # 仅作观察(continue-on-error): 上游断言写给它自己的测试床, 2026-10-13 本地
+      # 对 6.0.5 实跑为 300 过 / 1 败 / 6 跳, 败在 TestFormatTsBackend 的公元 0 年
+      # 被服务端拒绝。计数写进 step summary。
+      - name: upstream connector test suite against openGauss (advisory)
+        continue-on-error: true
+        run: |
+          export TEST_CONN_STRING="${AOCI_TEST_OPENGAUSS_ADMIN_DSN}"
+          export PQTEST_BINARY_PARAMETERS=no
+          report="${RUNNER_TEMP}/opengauss-connector-tests.json"
+          status=0
+          ( cd third_party/openGauss-connector-go-pq && go test -count=1 -json -timeout 15m -run . ./... ) > "${report}" || status=$?
+          python3 - "${report}" "${status}" >> "$GITHUB_STEP_SUMMARY" <<'PYEOF'
+          import collections, json, sys
+          path, status = sys.argv[1], int(sys.argv[2])
+          counts, packages = collections.Counter(), collections.Counter()
+          failed, output = [], collections.defaultdict(list)
+          with open(path, encoding="utf-8") as handle:
+              for line in handle:
+                  try:
+                      event = json.loads(line)
+                  except ValueError:
+                      continue
+                  action, test = event.get("Action"), event.get("Test")
+                  if test:
+                      if action in ("pass", "fail", "skip"):
+                          counts[action] += 1
+                          if action == "fail":
+                              failed.append(event.get("Package", "") + " " + test)
+                      elif action == "output":
+                          output[test].append(event.get("Output", ""))
+                  elif action in ("pass", "fail", "skip"):
+                      packages[action] += 1
+          print("### Upstream openGauss connector suite against the openGauss 6.0.5 container (advisory)")
+          print()
+          print("go test exit status %d. Tests including subtests: %d passed, %d failed, %d skipped. Packages: %d ok, %d failed, %d without tests."
+                % (status, counts["pass"], counts["fail"], counts["skip"], packages["pass"], packages["fail"], packages["skip"]))
+          for name in failed[:40]:
+              print("- failed: `%s`" % name)
+          if len(failed) > 40:
+              print("- ... and %d more" % (len(failed) - 40))
+          if failed:
+              first = failed[0].split(" ", 1)[1]
+              print()
+              print("Last output lines of `%s`:" % first)
+              print()
+              print("```")
+              print("".join(output.get(first, [])[-30:]).rstrip())
+              print("```")
+          PYEOF
+          cat "$GITHUB_STEP_SUMMARY"
+          exit "${status}"
       - name: stop isolated openGauss
         if: always()
         run: docker rm -f "aoci-opengauss-${GITHUB_RUN_ID}" >/dev/null 2>&1 || true

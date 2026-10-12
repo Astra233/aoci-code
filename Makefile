@@ -37,7 +37,7 @@ OPENGAUSS_PATCH_GO_FILES := \
 	third_party/openGauss-connector-go-pq/ssl.go \
 	third_party/openGauss-connector-go-pq/aoci_security_patch_test.go
 
-.PHONY: build test fast fast-test fast-builds full verify release-check race vuln fuzz-smoke database-integration clean-room-smoke example-test vet fmt fmt-check safety check-deps toolchain-preflight opengauss-connector licenses textassets-check update-goldens staticcheck coverage-floors ladder check cross clean axis-self
+.PHONY: build test fast fast-test fast-builds full verify release-check race vuln fuzz-smoke database-integration clean-room-smoke example-test vet fmt fmt-check safety check-deps toolchain-preflight opengauss-connector licenses textassets-check update-goldens staticcheck coverage-floors ladder check cross clean axis-self longrun-refresh
 
 # 静态编译单二进制,使用Go目标平台的原生可执行文件后缀。
 build:
@@ -220,6 +220,16 @@ database-integration:
 
 clean-room-smoke:
 	bash scripts/release/clean-room-smoke.sh
+
+# Long-running cognition refresh black box (R67-A). A Go runner drives the
+# host-native binary as a real stdio MCP server over two disposable Git
+# repositories: the 29-versus-30 semantic threshold, compact check_only, Dirty
+# delivery marked unreliable, a simulated Host compaction with a partial
+# Attestation, three-reason merging, one injected repair_required correction,
+# and final Verify/Check/Guide alignment. Not part of full; the nightly line runs
+# it on schedule and dispatch. The JSON report lands under the ignored build/.
+longrun-refresh: build
+	$(GO_BIN) run ./scripts/blackbox/longrun-refresh --binary "$(abspath $(BUILD_BIN))" --output build/longrun-refresh-report.json
 
 # Tier 1: complete confidence gate. Ordinary commits do not run or wait for it.
 full: toolchain-preflight build $(FULL_GATES)
