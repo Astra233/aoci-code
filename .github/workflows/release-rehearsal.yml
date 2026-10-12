@@ -47,6 +47,21 @@ jobs:
             --tools-list-sha256 "$(sha256sum testdata/golden/mcp_list_tools.json | awk '{print $1}')"
           (cd dist && sha256sum -c SHA256SUMS)
           go run ./scripts/release/manifest --verify dist/RELEASE-MANIFEST.json
+      # Pre-tag self-axis: the packaged Linux binary plays both roles of every
+      # upgrade-axis shape under the newest CHANGELOG version's label. A shape
+      # premise that would go stale the moment this candidate is released fails
+      # here, before the tag exists, instead of on the first nightly after it.
+      - name: upgrade-axis self run over the packaged Linux binary
+        run: |
+          archive=$(find dist -type f -name '*_linux_amd64.tar.gz' -print -quit)
+          test -n "$archive"
+          mkdir -p "$RUNNER_TEMP/aoci-self-axis"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/aoci-self-axis"
+          binary=$(find "$RUNNER_TEMP/aoci-self-axis" -type f -name aoci -print -quit)
+          test -n "$binary"
+          chmod +x "$binary"
+          make axis-self BUILD_BIN="$binary"
+          git diff --exit-code
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: aoci-release-rehearsal-${{ github.sha }}
