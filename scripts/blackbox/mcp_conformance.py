@@ -402,12 +402,12 @@ def has_cjk(text):
     return any("一" <= ch <= "鿿" for ch in str(text))
 
 def _sh(cwd, *args):
-    r = subprocess.run(list(args), cwd=cwd, capture_output=True, text=True, timeout=120)
+    r = subprocess.run(list(args), cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     if r.returncode != 0:
         raise RuntimeError(f"{args}: {r.stderr[:200]}")
 
 def _cli(repo, *args):
-    r = subprocess.run([BIN, "--repo", repo, *args, "--json"], capture_output=True, text=True, timeout=120)
+    r = subprocess.run([BIN, "--repo", repo, *args, "--json"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     try:
         body = json.loads(r.stdout)
     except ValueError:

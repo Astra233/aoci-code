@@ -315,7 +315,7 @@ class MySQLBox:
         r = subprocess.run(["docker", "run", "-d", "--rm", "--name", self.name,
                             "-e", f"MYSQL_ROOT_PASSWORD={self.pw}", "-e", f"MYSQL_DATABASE={self.db}",
                             "-p", f"127.0.0.1:{self.port}:3306", self.image],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             raise RuntimeError(f"docker run failed: {r.stderr[:300]}")
         ok_streak, deadline = 0, time.time() + timeout
@@ -333,13 +333,13 @@ class MySQLBox:
     def apply_sql(self, path):
         with open(path, "rb") as f:
             r = subprocess.run(["docker", "exec", "-i", self.name, "mysql", "-uroot",
-                                f"-p{self.pw}", self.db], stdin=f, capture_output=True, text=True)
+                                f"-p{self.pw}", self.db], stdin=f, capture_output=True, text=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             raise RuntimeError(f"apply {os.path.basename(path)} failed: {r.stderr[:300]}")
 
     def digest(self):
         r = subprocess.run(["docker", "inspect", "--format", "{{index .RepoDigests 0}}", self.image],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
         return r.stdout.strip()
 
     def stop(self):
@@ -374,7 +374,7 @@ def suite_bringup(rep, work):
         rep.rec(g, f"repo-{key}.init-en", "PASS" if rec_ok else "FAIL", (out + errs)[:150] if not rec_ok else "")
         rc, _, out, errs = cli(fx, "init", "--agent", "opencode")
         oc = os.path.join(fx, "opencode.json")
-        ok = rc == 0 and os.path.exists(oc) and BIN in open(oc).read() and fx in open(oc).read()
+        ok = rc == 0 and os.path.exists(oc) and BIN in open(oc, encoding="utf-8").read() and fx in open(oc, encoding="utf-8").read()
         rep.rec(g, f"repo-{key}.init-agent-opencode", "PASS" if ok else "FAIL")
         rc, _, out, errs = cli(fx, "scan")
         ok = rc == 0 and os.path.exists(os.path.join(fx, ".aoci", "baseline.json"))
@@ -415,7 +415,7 @@ HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
 def human(repo, *args):
     """Run the CLI as an operator does, without --json: (rc, stdout + stderr)."""
-    proc = subprocess.run([BIN, "--repo", repo, *args], capture_output=True, text=True, timeout=120)
+    proc = subprocess.run([BIN, "--repo", repo, *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 
@@ -1304,7 +1304,7 @@ def suite_governance(rep, work):
     init_and_scan(fx, curation_exclude=None)
     cli(fx, "config", "set", "curation_exclude", CURATION_EXCLUDE["a"])
     cs = os.path.join(work, "gov-cs.json")
-    open(cs, "w").write('{"version":"managed-scope-candidate-set/v1","entries":[],"dispositions":[]}')
+    open(cs, "w", encoding="utf-8").write('{"version":"managed-scope-candidate-set/v1","entries":[],"dispositions":[]}')
     rc, v, out, _ = cli(fx, "scope", "preview", "--candidate-file", cs, expect_ok=False)
     pv = os.path.join(work, "gov-pv.json")
     open(pv, "w").write(out)
@@ -1315,7 +1315,7 @@ def suite_governance(rep, work):
     blob = (v.get("message") or "") + out
     refused = rc != 0 and ("coverage_reduction" in blob or "human_approval_required" in blob)
     try:
-        plan = (jload(open(pv).read()) or {}).get("plan") or {}
+        plan = (jload(open(pv, encoding="utf-8").read()) or {}).get("plan") or {}
         cause_visible = bool((plan.get("risk") or {}).get("cognition_coverage_reduction"))
     except Exception:
         cause_visible = False
@@ -1446,7 +1446,7 @@ def opencode_run(fx, model, prompt, timeout_s, artifact):
         r = subprocess.run([OPENCODE, "run", prompt, "-m", model,
                             "--dir", fx, "--auto", "--format", "json",
                             "--title", f"aoci-lifecycle-{os.path.basename(fx)}"],
-                           capture_output=True, text=True, timeout=timeout_s)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout_s)
         rc, out, err = r.returncode, r.stdout, r.stderr
     except subprocess.TimeoutExpired as e:
         rc = 124
@@ -1585,7 +1585,7 @@ def main():
 
     run_id = time.strftime("%Y%m%d-%H%M%S")
     desc = subprocess.run(["git", "-C", REPO, "describe", "--tags", "--always"],
-                          capture_output=True, text=True).stdout.strip()
+                          capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.strip()
     suites = [s.strip() for s in args.suites.split(",") if s.strip()] or \
              (D_SUITES + (M_SUITES if args.model else []))
     bad = [s for s in suites if s not in D_SUITES + M_SUITES]

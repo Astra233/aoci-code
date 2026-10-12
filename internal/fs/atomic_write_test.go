@@ -3,6 +3,7 @@ package fs
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -34,8 +35,11 @@ func TestAtomicWritePreservesExistingPermissionAndCleansStaging(t *testing.T) {
 	if err := AtomicWrite(existing, []byte("new\n")); err != nil {
 		t.Fatal(err)
 	}
+	// Windows has no POSIX mode bits: a 0600 file reads back as 0666 there, so
+	// the permission half of this lock is Unix-only; content and staging hold
+	// everywhere.
 	info, err := os.Stat(existing)
-	if err != nil || info.Mode().Perm() != 0o600 {
+	if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Fatalf("existing permission must be preserved: mode=%v err=%v", info.Mode(), err)
 	}
 	if got := casTestRead(t, existing); got != "new\n" {
@@ -47,7 +51,7 @@ func TestAtomicWritePreservesExistingPermissionAndCleansStaging(t *testing.T) {
 		t.Fatal(err)
 	}
 	info, err = os.Stat(fresh)
-	if err != nil || info.Mode().Perm() != 0o644 {
+	if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o644) {
 		t.Fatalf("new file must be 0644: mode=%v err=%v", info.Mode(), err)
 	}
 	staging, globErr := filepath.Glob(filepath.Join(root, ".aoci-tmp-*"))

@@ -459,7 +459,7 @@ def git(path, *args):
 
 
 def run(binary, repo, *args, check=False):
-    proc = subprocess.run([binary, "--repo", repo] + list(args), capture_output=True, text=True, timeout=300)
+    proc = subprocess.run([binary, "--repo", repo] + list(args), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300)
     if check and proc.returncode != 0:
         raise RuntimeError(f"{os.path.basename(binary)} {' '.join(args)} -> {proc.returncode}: {proc.stderr[:400]}")
     return proc

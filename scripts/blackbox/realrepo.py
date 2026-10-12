@@ -59,7 +59,7 @@ for junk in (".aoci", "aoci.txt", "aoci.meta.txt", "aoci.code.txt"):
     elif os.path.exists(p): os.remove(p)
 report = {"repo": name, "source": src, "binary": BIN, "label": LABEL, "started": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
 try:
-    report["binary_version"] = subprocess.run([BIN, "--version"], capture_output=True, text=True, timeout=30).stdout.strip()
+    report["binary_version"] = subprocess.run([BIN, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30).stdout.strip()
 except Exception as exc:  # noqa: BLE001 - recorded, not fatal
     report["binary_version"] = f"unavailable: {exc}"
 IGNORED_TREE = int(opts.get("--ignored-tree", "3000"))
@@ -223,7 +223,7 @@ print("optimization:", json.dumps(opt), flush=True)
 hook = {"skipped": True}
 if wave_paths:
     payload = json.dumps({"tool_name": "Edit", "tool_input": {"file_path": os.path.join(work, wave_paths[0])}})
-    proc = subprocess.run([BIN, "--repo", work, "hook", "pretool", "--agent", "claude", "--stdin-json"], input=payload, capture_output=True, text=True, timeout=120)
+    proc = subprocess.run([BIN, "--repo", work, "hook", "pretool", "--agent", "claude", "--stdin-json"], input=payload, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     hook = {"skipped": False, "exit": proc.returncode, "stdout_bytes": len(proc.stdout), "has_entry": "[" in proc.stdout and "F:" in proc.stdout}
 report["hook"] = hook
 print("hook:", json.dumps(hook), flush=True)

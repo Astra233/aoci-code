@@ -197,7 +197,7 @@ def is_rejection(text, err):
 # ---------------------------------------------------------------- CLI helper
 def cli(repo, *args, expect_ok=True):
     r = subprocess.run([BIN, "--repo", repo, *args, "--json"],
-                       capture_output=True, text=True, timeout=120)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     body = {}
     try: body = json.loads(r.stdout)
     except Exception:
@@ -206,7 +206,7 @@ def cli(repo, *args, expect_ok=True):
     return r.returncode, body, r.stdout, r.stderr
 
 def sh(cwd, *args):
-    r = subprocess.run(list(args), cwd=cwd, capture_output=True, text=True, timeout=120)
+    r = subprocess.run(list(args), cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     if r.returncode != 0:
         raise RuntimeError(f"{args}: {r.stderr[:300]}")
     return r.stdout
@@ -1297,7 +1297,7 @@ def group_f_excluded_tracked():
 def run_returned_command(fx, command):
     """Run a next_commands string exactly as returned (agent placeholder filled)."""
     filled = command.replace("{agent}", "claude")
-    proc = subprocess.run(filled, shell=True, cwd=fx, capture_output=True, text=True, timeout=120)
+    proc = subprocess.run(filled, shell=True, cwd=fx, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 def overview_meta_and_full_body(text):
@@ -1940,7 +1940,7 @@ def start_ui(repo):
     out_file, err_file = open(out_path, "w", encoding="utf-8"), open(err_path, "w", encoding="utf-8")
     try:
         process = subprocess.Popen([BIN, "ui", "--repo", repo, "--port", "0", "--discover=false", "--json"],
-                                   stdout=out_file, stderr=err_file, text=True)
+                                   stdout=out_file, stderr=err_file, text=True, encoding="utf-8", errors="replace")
     finally:
         out_file.close()
         err_file.close()
@@ -2080,7 +2080,7 @@ def group_u_detach():
 
     def run(*extra):
         p = subprocess.run([BIN, "ui", "--repo", fx, "--discover=false", "--json", *extra],
-                           capture_output=True, text=True, timeout=60, env=env)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60, env=env)
         out = p.stdout.strip()
         try:
             payload = json.loads(out) if out.startswith("{") else {}
@@ -2128,7 +2128,7 @@ def hook(fx, *flags, stdin=None):
     Claude Code channel, the host's PreToolUse JSON on stdin. Returns
     (exit code, stdout, stderr)."""
     proc = subprocess.run([BIN, "--repo", fx, "hook", "pretool", *flags], cwd=fx, input=stdin,
-                          capture_output=True, text=True, timeout=60)
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
     return proc.returncode, proc.stdout, proc.stderr
 
 
