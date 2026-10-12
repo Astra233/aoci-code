@@ -126,6 +126,13 @@ jobs:
         run: |
           python3 scripts/blackbox/mcp_upgrade.py
           git diff --exit-code
+      # 长程认知刷新黑盒(R67-A): Go runner 起真二进制的 stdio MCP, 在两个一次性仓库
+      # 上跑阈值实验与压缩恢复实验。只在夜间与手动触发时跑; 推送触发不跑。
+      - name: long-running cognition refresh black box
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          make longrun-refresh
+          git diff --exit-code
       # 覆盖率是可见性而非门禁: 让安全核心包的薄弱处暴露在构建摘要里。
       - name: coverage snapshot
         run: |

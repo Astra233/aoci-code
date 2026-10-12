@@ -132,10 +132,10 @@ type autoCandidate struct {
 }
 
 type autoResult struct {
-	Status     string          `json:"status"`
-	Aligned    bool            `json:"aligned"`
-	Candidates []autoCandidate `json:"candidates"`
-	Findings   []string        `json:"findings"`
+	Status     string            `json:"status"`
+	Aligned    bool              `json:"aligned"`
+	Candidates []autoCandidate   `json:"candidates"`
+	Findings   []json.RawMessage `json:"findings"`
 	Metrics    struct {
 		DeterministicMS int64 `json:"deterministic_ms"`
 	} `json:"metrics"`
@@ -951,6 +951,20 @@ func buildAttestationArguments(root, delivered string, wrongAnswers int) (map[st
 	if err != nil {
 		return nil, err
 	}
+	// The Attestation echoes the Challenge's exact current Index identity; a
+	// prior Index, Entry sequence, or count is invalid.
+	challengeIndexSHA, err := metadataValue(delivered, "challenge_index_sha256")
+	if err != nil {
+		return nil, err
+	}
+	challengeSequenceSHA, err := metadataValue(delivered, "challenge_entry_sequence_sha256")
+	if err != nil {
+		return nil, err
+	}
+	challengeEntryCount, err := metadataInt(delivered, "challenge_entry_count")
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
 		"host_delivery_confirmation": map[string]any{
 			"version": "overview-delivery-receipt/v1", "body_sha256": bodySHA,
@@ -958,6 +972,8 @@ func buildAttestationArguments(root, delivered string, wrongAnswers int) (map[st
 		},
 		"model_cognition_attestation": map[string]any{
 			"version": "model-cognition-attestation/v1", "challenge_digest": challengeDigest,
+			"index_sha256": challengeIndexSHA, "entry_sequence_sha256": challengeSequenceSHA,
+			"entry_count":          challengeEntryCount,
 			"reported_entry_count": entryCount, "reported_estimated_tokens": tokens,
 			"coverage_percent": 100, "system_mastery_percent": 95,
 			"confidence_percent": 95, "truncation_detected": false,
