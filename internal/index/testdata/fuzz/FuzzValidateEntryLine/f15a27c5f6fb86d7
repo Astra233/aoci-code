@@ -1,0 +1,4 @@
+go test fuzz v1
+string("cli_help_final_assets.go")
+string("cli_help_final_assets.go[CG5T]: F:Embeds finalized localized CLI help contracts registered by the command layer | R:- | A:- | S:-")
+string("")

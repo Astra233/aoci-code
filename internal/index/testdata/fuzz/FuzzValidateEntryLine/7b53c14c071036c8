@@ -1,0 +1,4 @@
+go test fuzz v1
+string("replay.go")
+string("replay.go[CG7S]: F:Compares approved migration Preview content while excluding append-only runtime Ledger growth from replay identity | R:code:internal/cognitionplan/plan.go,code:internal/cognitionplan/types.go | A:PreviewReplayMismatches | S:Only content identities may replay: candidate, physical/logical diff, mapping, and approval mismatches are exposed as digests and counts without candidate or evidence bodies")
+string("")

@@ -1,0 +1,4 @@
+go test fuzz v1
+string("overview_attestation_v1.go")
+string("overview_attestation_v1.go[CG9L]: F:Builds and verifies identity-bound Whole-Index challenge attestations and receipts | R:- | A:- | S:The challenge samples deterministic strata of the exact formal Entry sequence; pass needs the current Index, sequence, count, digest, ordered answers with at least 80% fully correct and at most one identity miss, core F judged by normalized token similarity with CJK bigrams, and complete delivery claims; fail is only a foreign envelope or zero correct, otherwise partial")
+string("")

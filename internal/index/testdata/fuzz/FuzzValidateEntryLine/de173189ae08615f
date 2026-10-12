@@ -1,0 +1,4 @@
+go test fuzz v1
+string("scope.go")
+string("scope.go[CG8L]: F:Implements managed-scope policy, budget, review, authorization, Apply, activation, recovery, and Volumes-aware status commands | R:code:internal/scopechange/plan.go,code:internal/managedscope/evaluate.go,code:internal/baseline/scope_detect.go | A:aoci scope | S:Policy and budget edits only require governed Scope Change; under Volumes v1 the budget is measured over the whole declared asset set, not the Root pointer alone; the approval prompt names only the destination posture and --out-file is validated before the human is asked; brace globs are refused only at rule add or edit, persisted ones keep loading; explain reports a path inside a submodule as its gitlink boundary")
+string("")

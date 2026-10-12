@@ -1,0 +1,4 @@
+go test fuzz v1
+string(".gitattributes")
+string(".gitattributes[CG3T]: F:Normalizes repository text line endings for deterministic hashes and cross-platform collaboration | R:- | A:- | S:autocrlf rewrites would mark the whole tree stale")
+string("")

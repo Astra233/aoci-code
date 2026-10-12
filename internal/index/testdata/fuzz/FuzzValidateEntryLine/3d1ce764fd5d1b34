@@ -1,0 +1,4 @@
+go test fuzz v1
+string("full-confidence.yml")
+string("full-confidence.yml[CG5M]: F:Runs scheduled, manual, and main-branch gates for licensing, races, lifecycle, scale, upgrade axis, databases, native platforms, and coverage | R:code:Makefile,code:scripts/check-licenses.sh,code:scripts/blackbox/README.md,code:scripts/blackbox/mcp_upgrade.py | A:GitHub Actions workflow_dispatch | S:openGauss pins 6.0.5, verify-full TLS; windows-scenarios needs native Windows; a scripts/blackbox edit must trigger this gate; linux-full has 90 min; the 1,000-object timing is a benchmark, not a test")
+string("")

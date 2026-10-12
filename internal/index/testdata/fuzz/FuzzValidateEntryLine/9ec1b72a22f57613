@@ -1,0 +1,4 @@
+go test fuzz v1
+string("connector.go")
+string("connector.go[CG9M]: F:Registers openGauss drivers and establishes database/sql connections through configuration, DNS, dialing, TLS, authentication, startup, and fallback selection | R:code:third_party/openGauss-connector-go-pq/config.go,code:third_party/openGauss-connector-go-pq/conn.go,code:third_party/openGauss-connector-go-pq/conn_go18.go,code:third_party/openGauss-connector-go-pq/ssl.go | A:Driver,Connector,NewConnector,NewConnectorConfig,Open,DialOpen | S:Caller context and ConnectTimeout cover DNS, dial, TLS, authentication, and startup; deadlines clear only after complete success, while incomplete attempts close the transport")
+string("")

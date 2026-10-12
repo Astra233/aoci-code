@@ -1,0 +1,4 @@
+go test fuzz v1
+string("pretool.go")
+string("pretool.go[CG7S]: F:Injects the target Entry and drift warning before Agent writes, with optional strict stale blocking | R:code:internal/baseline/baseline.go,code:internal/index/parser.go,code:internal/config/config.go,code:internal/cognition/loader.go | A:HandlePreTool | S:Fails open on bad paths or missing config, Index, or Baseline; under Volumes v1 it reads the Code Volume, not aoci.txt; only true semantic stale plus hook_strict blocks, never line-ending drift alone")
+string("")

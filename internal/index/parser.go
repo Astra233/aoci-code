@@ -239,7 +239,7 @@ func Parse(text string) (*Document, []Warning) {
 		if m == nil {
 			// 形似条目但不匹配(如含 [ 却缺 ]: 结构)时给出警告,便于人工排查
 			if strings.Contains(line, "[") && strings.Contains(line, "]:") {
-				warnings = append(warnings, Warning{LineNo: lineNo, Msg: "疑似条目行但未通过条目正则: " + truncateForWarn(line)})
+				warnings = append(warnings, newWarning(lineNo, "疑似条目行但未通过条目正则: "+truncateForWarn(line)))
 			}
 			continue
 		}
@@ -269,17 +269,17 @@ func Parse(text string) (*Document, []Warning) {
 		switch {
 		case twoReadings:
 			if prev, ok := seenInFirst[key]; ok {
-				warnings = append(warnings, Warning{LineNo: lineNo, Msg: "重复条目: 与第 " + strconv.Itoa(prev) + " 行同段同名(" + filename + ")"})
+				warnings = append(warnings, newWarning(lineNo, "重复条目: 与第 "+strconv.Itoa(prev)+" 行同段同名("+filename+")"))
 			} else {
 				seenInFirst[key] = lineNo
 			}
 		default:
 			if prev, ok := seen[key]; ok {
-				warnings = append(warnings, Warning{LineNo: lineNo, Msg: "重复条目: 与第 " + strconv.Itoa(prev) + " 行同段同名(" + filename + ")"})
+				warnings = append(warnings, newWarning(lineNo, "重复条目: 与第 "+strconv.Itoa(prev)+" 行同段同名("+filename+")"))
 			} else {
 				seen[key] = lineNo
 				if prev, ok := seenInFirst[key]; ok {
-					acrossReadings = append(acrossReadings, Warning{LineNo: lineNo, Msg: "重复条目: 与第 " + strconv.Itoa(prev) + " 行同段同名(" + filename + ")"})
+					acrossReadings = append(acrossReadings, newWarning(lineNo, "重复条目: 与第 "+strconv.Itoa(prev)+" 行同段同名("+filename+")"))
 				}
 			}
 		}
@@ -711,6 +711,15 @@ func FindEntriesByFilename(doc *Document, filename string) []*Entry {
 		}
 	}
 	return out
+}
+
+// newWarning builds a Warning whose text is always valid UTF-8. The fragments
+// quoted from the index (a suspicious line, a duplicated file name) carry
+// whatever bytes the file holds, and a Warning travels on into JSON responses
+// and CLI lines; invalid bytes become U+FFFD here, once, instead of being
+// coerced or refused downstream.
+func newWarning(lineNo int, msg string) Warning {
+	return Warning{LineNo: lineNo, Msg: strings.ToValidUTF8(msg, "\uFFFD")}
 }
 
 // truncateForWarn 警告文案截断,防超长行刷屏(按 rune 截断防切碎多字节字符)

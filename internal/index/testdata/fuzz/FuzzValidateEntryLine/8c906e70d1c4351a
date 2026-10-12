@@ -1,0 +1,4 @@
+go test fuzz v1
+string("windows-host-agent.md")
+string("windows-host-agent.md[CG5L]: F:Documents Windows host integration, runtime identity, Guide execution, PowerShell-safe workflows, and the no-staging-files rule for Volumes authoring batches | R:code:docs/cognition-volumes.md | A:- | S:The Stage pipeline sections are Legacy-only; Volume-first repositories use Guide plus no-argument Maintain, and the F-length-never-blocks rule does not apply to FRAS v2 objects")
+string("")
