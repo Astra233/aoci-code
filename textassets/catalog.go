@@ -119,18 +119,49 @@ var embeddedAssets embed.FS
 
 // ReadManifest读取并合并清单元数据，不读取或校验任何资源正文。
 //
-// 该函数故意不缓存：清单很小，重复解析成本可忽略；无隐藏全局状态意味着并发
-// 首次读取、失败后重试和故障注入都不会留下部分缓存或永久化错误。
+// The embedded bytes cannot change while the process runs, so their decoded
+// and validated form is memoized once per process, the way ValidateRuntime
+// memoizes the catalog validation and uiMessageCatalog the decoded bundles.
+// Every caller still receives its own clone, so no shared mutable state
+// exists, and a decode or metadata failure of the embedded manifest is as
+// permanent as the binary that carries it. Fault injection and tests read
+// their own asset trees through readManifestFS, which decodes on every call.
+// Before the memo, building one command tree decoded every manifest fragment
+// several hundred times and cost about half a second per CLI invocation.
 func ReadManifest() (Manifest, error) {
-	manifest, err := readManifestFS(embeddedAssets)
+	manifest, err := embeddedManifest()
 	if err != nil {
 		return Manifest{}, err
 	}
-	if err := validateManifestMetadata(manifest); err != nil {
-		return Manifest{}, err
+	if embeddedManifestMetadataErr != nil {
+		return Manifest{}, embeddedManifestMetadataErr
 	}
 
 	return cloneManifest(manifest), nil
+}
+
+var (
+	embeddedManifestOnce        sync.Once
+	embeddedManifestValue       Manifest
+	embeddedManifestDecodeErr   error
+	embeddedManifestMetadataErr error
+)
+
+// embeddedManifest decodes the embedded manifest once per process and returns
+// the shared decoded value, which callers must treat as read-only. The decode
+// error and the metadata validation error are kept apart so ReadManifest and
+// Load report the same error, in the same order, as a fresh decode would.
+func embeddedManifest() (Manifest, error) {
+	embeddedManifestOnce.Do(func() {
+		embeddedManifestValue, embeddedManifestDecodeErr = readManifestFS(embeddedAssets)
+		if embeddedManifestDecodeErr == nil {
+			embeddedManifestMetadataErr = validateManifestMetadata(embeddedManifestValue)
+		}
+	})
+	if embeddedManifestDecodeErr != nil {
+		return Manifest{}, embeddedManifestDecodeErr
+	}
+	return embeddedManifestValue, nil
 }
 
 func cloneManifest(source Manifest) Manifest {
@@ -279,7 +310,11 @@ func ValidateForRelease() error {
 // validated; corruption in an unrelated resource body cannot block this call.
 // Development locales are deliberately unavailable to production consumers.
 func Load(locale string, id ID) (string, error) {
-	return loadFS(embeddedAssets, locale, id)
+	manifest, err := embeddedManifest()
+	if err != nil {
+		return "", err
+	}
+	return loadWithManifest(embeddedAssets, manifest, locale, id)
 }
 
 // MustLoad is retained for test and migration compatibility. Production callers
@@ -298,6 +333,12 @@ func loadFS(assetFS fs.FS, locale string, id ID) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return loadWithManifest(assetFS, manifest, locale, id)
+}
+
+// loadWithManifest is loadFS after the manifest decode; it only reads the
+// manifest it is handed.
+func loadWithManifest(assetFS fs.FS, manifest Manifest, locale string, id ID) (string, error) {
 	if _, _, err := validateLocaleLifecycle(manifest); err != nil {
 		return "", err
 	}

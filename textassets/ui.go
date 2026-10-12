@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"sync"
 	"unicode"
@@ -17,12 +18,25 @@ const ContractUIMessages ID = "contracts/ui/messages"
 var (
 	uiMessageCatalogOnce sync.Once
 	uiMessageCatalogs    map[string]map[string]string
+	uiMessageLocales     []string
+	uiMessageReverse     map[string][]uiMessageOrigin
 	uiMessageCatalogErr  error
 )
 
+// uiMessageOrigin names one catalog entry whose rendered value a reverse
+// lookup can start from.
+type uiMessageOrigin struct {
+	locale string
+	key    string
+}
+
 // uiMessageCatalog returns one immutable decoded embedded bundle. Keeping the
 // decoded maps process-local preserves the same fail-closed load boundary while
-// avoiding a full JSON decode and asset scan for every rendered message.
+// avoiding a full JSON decode and asset scan for every rendered message. The
+// manifest's official locale order is kept beside the bundles, with a reverse
+// index from every zero-argument value to its origins in that locale order
+// and in key order, so a reverse lookup neither decodes the manifest again
+// nor scans every message of every locale.
 func uiMessageCatalog(locale string) (map[string]string, error) {
 	uiMessageCatalogOnce.Do(func() {
 		manifest, err := ReadManifest()
@@ -30,7 +44,9 @@ func uiMessageCatalog(locale string) (map[string]string, error) {
 			uiMessageCatalogErr = err
 			return
 		}
+		uiMessageLocales = cloneStrings(manifest.OfficialLocales)
 		catalogs := make(map[string]map[string]string, len(manifest.OfficialLocales))
+		reverse := map[string][]uiMessageOrigin{}
 		for _, officialLocale := range manifest.OfficialLocales {
 			source, loadErr := Load(officialLocale, ContractUIMessages)
 			if loadErr != nil {
@@ -47,8 +63,21 @@ func uiMessageCatalog(locale string) (map[string]string, error) {
 				return
 			}
 			catalogs[officialLocale] = messages
+			keys := make([]string, 0, len(messages))
+			for key := range messages {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+			for _, key := range keys {
+				value := messages[key]
+				if len(formatSignature(value)) != 0 {
+					continue
+				}
+				reverse[value] = append(reverse[value], uiMessageOrigin{locale: officialLocale, key: key})
+			}
 		}
 		uiMessageCatalogs = catalogs
+		uiMessageReverse = reverse
 	})
 	if uiMessageCatalogErr != nil {
 		return nil, uiMessageCatalogErr
@@ -201,35 +230,22 @@ func diagnosticMachineToken(token string) bool {
 // metadata constructed during Go package initialization without creating a
 // second command tree or translation catalog.
 func RelocalizeMessageExact(targetLocale, current string) (string, bool, error) {
-	manifest, err := ReadManifest()
-	if err != nil {
-		return "", false, err
-	}
 	targetMessages, err := uiMessageCatalog(targetLocale)
 	if err != nil {
 		return "", false, err
 	}
 	matched := ""
 	matchedKey := ""
-	for _, locale := range manifest.OfficialLocales {
-		messages, catalogErr := uiMessageCatalog(locale)
-		if catalogErr != nil {
-			return "", false, catalogErr
+	for _, origin := range uiMessageReverse[current] {
+		target, exists := targetMessages[origin.key]
+		if !exists {
+			return "", false, fmt.Errorf("UI message key %q is missing from locale %s", origin.key, targetLocale)
 		}
-		for key, value := range messages {
-			if value != current || len(formatSignature(value)) != 0 {
-				continue
-			}
-			target, exists := targetMessages[key]
-			if !exists {
-				return "", false, fmt.Errorf("UI message key %q is missing from locale %s", key, targetLocale)
-			}
-			if matchedKey != "" && matched != target {
-				return "", false, fmt.Errorf("UI message value is ambiguous between keys %q and %q", matchedKey, key)
-			}
-			matched = target
-			matchedKey = key
+		if matchedKey != "" && matched != target {
+			return "", false, fmt.Errorf("UI message value is ambiguous between keys %q and %q", matchedKey, origin.key)
 		}
+		matched = target
+		matchedKey = origin.key
 	}
 	return matched, matchedKey != "", nil
 }
