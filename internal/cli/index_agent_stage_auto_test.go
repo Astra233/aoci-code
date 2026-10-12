@@ -99,30 +99,14 @@ func r65HostAgentRequest(
 	}
 }
 
-// r65RunAgentStageDirect使用全新Stage命令执行JSON请求。
-//
-// 全局根Flag必须在本函数返回前立即恢复，不能延迟到整个测试结束，避免同一测试
-// 后续断言或包内其他直接命令调用观察到flagJSON=true。
+// r65RunAgentStageDirect runs `index agent stage --stdin-json` with the
+// request on stdin and returns both streams with the exit code as an error.
 func r65RunAgentStageDirect(
 	t *testing.T,
 	root string,
 	request agentStageRequest,
 ) (string, error) {
 	t.Helper()
-
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	oldQuiet := flagQuiet
-
-	flagRepo = root
-	flagJSON = true
-	flagQuiet = false
-
-	defer func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-		flagQuiet = oldQuiet
-	}()
 
 	data, err := json.Marshal(
 		request,
@@ -131,29 +115,9 @@ func r65RunAgentStageDirect(
 		t.Fatal(err)
 	}
 
-	command := newIndexAgentStageCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-	command.SetArgs(
-		[]string{
-			"--stdin-json",
-		},
-	)
-	command.SetIn(
-		bytes.NewReader(data),
-	)
-
-	var output bytes.Buffer
-	command.SetOut(
-		&output,
-	)
-	command.SetErr(
-		&output,
-	)
-
-	runErr := command.Execute()
-
-	return output.String(), runErr
+	stdout, stderr, code := runCLIStdin(t, root, bytes.NewReader(data),
+		"--json", "index", "agent", "stage", "--stdin-json")
+	return stdout + stderr, exitError(stderr+stdout, code)
 }
 
 func TestAgentStageCommandAutoFinalizesAndApplies(

@@ -26,11 +26,13 @@ func TestInitCreatesRuntimeGitignore(
 ) {
 	root := t.TempDir()
 
+	// The asset is compared in zh-CN, so the repository is initialized in it.
 	if _, err := runInit(
 		t,
 		root,
 		"--agent=",
 		"--hooks=false",
+		"--locale=zh-CN",
 	); err != nil {
 		t.Fatalf(
 			"init失败: %v",

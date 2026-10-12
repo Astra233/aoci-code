@@ -85,68 +85,8 @@ func TestAgentCurationFlowPromotesIncludedEmptyFile(
 		)
 	}
 
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-
-	flagRepo = root
-	flagJSON = false
-
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-	})
-
-	diffCommand := newAgentCurationDiffCmd()
-	diffCommand.SilenceUsage = true
-	diffCommand.SilenceErrors = true
-	diffCommand.SetArgs(
-		[]string{
-			result.RunID,
-		},
-	)
-
-	var diffOutput bytes.Buffer
-
-	diffCommand.SetOut(
-		&diffOutput,
-	)
-	diffCommand.SetErr(
-		&diffOutput,
-	)
-
-	if err := diffCommand.Execute(); err != nil {
-		t.Fatalf(
-			"Curation Diff失败: %v\n%s",
-			err,
-			diffOutput.String(),
-		)
-	}
-
-	applyCommand := newAgentCurationApplyCmd()
-	applyCommand.SilenceUsage = true
-	applyCommand.SilenceErrors = true
-	applyCommand.SetArgs(
-		[]string{
-			result.RunID,
-		},
-	)
-
-	var applyOutput bytes.Buffer
-
-	applyCommand.SetOut(
-		&applyOutput,
-	)
-	applyCommand.SetErr(
-		&applyOutput,
-	)
-
-	if err := applyCommand.Execute(); err != nil {
-		t.Fatalf(
-			"Curation Apply失败: %v\n%s",
-			err,
-			applyOutput.String(),
-		)
-	}
+	mustCLI(t, root, "index", "agent", "curation", "diff", result.RunID)
+	mustCLI(t, root, "index", "agent", "curation", "apply", result.RunID)
 
 	document, exists, _, err := curation.Load(
 		root,

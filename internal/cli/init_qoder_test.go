@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"bytes"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,26 +19,13 @@ import (
 // has not been measured.
 func TestInitQoderWritesSharedMCPJSONAndNoHooks(t *testing.T) {
 	root := t.TempDir()
-	previousRepo, previousJSON, previousQuiet := flagRepo, flagJSON, flagQuiet
-	t.Cleanup(func() { flagRepo, flagJSON, flagQuiet = previousRepo, previousJSON, previousQuiet })
 	// init writes its human report straight to the process stdout, so the
-	// report is captured through a pipe the way the output-order test does.
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldStdout := os.Stdout
-	os.Stdout = writer
-	t.Cleanup(func() { os.Stdout = oldStdout })
-	var stdout, stderr bytes.Buffer
-	code := executeCLI([]string{"--repo", root, "init", "--agent", "qoder", "--hooks", "--locale", "en-US"}, &stdout, &stderr)
-	_ = writer.Close()
-	os.Stdout = oldStdout
-	captured, _ := io.ReadAll(reader)
+	// report is captured there as well.
+	captured, stdout, stderr, code := runCLIPrinted(t, root, "init", "--agent", "qoder", "--hooks", "--locale", "en-US")
 	if code != ExitOK {
-		t.Fatalf("init --agent qoder failed: code=%d stdout=%s stderr=%s", code, captured, stderr.String())
+		t.Fatalf("init --agent qoder failed: code=%d stdout=%s stderr=%s", code, captured, stderr)
 	}
-	out := string(captured) + stdout.String()
+	out := captured + stdout
 	data, err := os.ReadFile(filepath.Join(root, ".mcp.json"))
 	if err != nil {
 		t.Fatalf("init --agent qoder must write .mcp.json: %v", err)

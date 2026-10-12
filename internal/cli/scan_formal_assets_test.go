@@ -6,7 +6,6 @@
 package cli
 
 import (
-	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,28 +13,12 @@ import (
 	"testing"
 )
 
+// runScan runs a quiet `aoci scan` against root and returns both streams with
+// the exit code as an error.
 func runScan(t *testing.T, root string, args ...string) (string, error) {
 	t.Helper()
-	oldRepo, oldQuiet, oldJSON := flagRepo, flagQuiet, flagJSON
-	flagRepo, flagQuiet, flagJSON = root, true, false
-	t.Cleanup(func() { flagRepo, flagQuiet, flagJSON = oldRepo, oldQuiet, oldJSON })
-
-	cmd := findRegisteredCommand(t, "scan")
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-	// The registered command is package-level, so a boolean flag set by an
-	// earlier case survives into this one; runInit guards the same hazard.
-	for _, name := range []string{"dry-run", "force"} {
-		if err := cmd.Flags().Set(name, "false"); err != nil {
-			t.Fatalf("reset --%s: %v", name, err)
-		}
-	}
-	var output bytes.Buffer
-	cmd.SetOut(&output)
-	cmd.SetErr(&output)
-	cmd.SetArgs(args)
-	err := cmd.Execute()
-	return output.String(), err
+	stdout, stderr, code := runCLI(t, root, append([]string{"--quiet", "scan"}, args...)...)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 func commitFixture(t *testing.T, root string) {

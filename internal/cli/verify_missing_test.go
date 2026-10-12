@@ -4,7 +4,6 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -142,33 +141,16 @@ func TestVerifyCommandJSONExposesMissingThreeWay(
 ) {
 	root := buildVerifyMissingThreeWayRepo(t)
 
-	withVerifyFlags(
-		t,
-		root,
-		true,
-	)
-
-	command := newVerifyCmd()
+	stdout, stderr, code := runCLI(t, root, "--json", "verify")
 	var output bytes.Buffer
+	output.WriteString(stdout)
 
-	command.SetOut(&output)
-	command.SetErr(&output)
-
-	err := command.RunE(
-		command,
-		nil,
-	)
-
-	var exitErr *ExitError
-
-	if !errors.As(
-		err,
-		&exitErr,
-	) ||
-		exitErr.Code != ExitDrift {
+	if code != ExitDrift {
 		t.Fatalf(
-			"Actionable与Pending存在时应ExitDrift: %v",
-			err,
+			"Actionable与Pending存在时应ExitDrift: exit %d\n%s%s",
+			code,
+			stdout,
+			stderr,
 		)
 	}
 
@@ -296,33 +278,15 @@ func TestVerifyOnlyPendingStillBlocks(
 		t.Fatal(err)
 	}
 
-	withVerifyFlags(
-		t,
-		root,
-		false,
-	)
-
-	command := newVerifyCmd()
+	stdout, stderr, code := runCLI(t, root, "verify")
 	var output bytes.Buffer
+	output.WriteString(stdout + stderr)
 
-	command.SetOut(&output)
-	command.SetErr(&output)
-
-	err = command.RunE(
-		command,
-		nil,
-	)
-
-	var exitErr *ExitError
-
-	if !errors.As(
-		err,
-		&exitErr,
-	) ||
-		exitErr.Code != ExitDrift {
+	if code != ExitDrift {
 		t.Fatalf(
-			"只有PendingCuration时仍应ExitDrift: %v",
-			err,
+			"只有PendingCuration时仍应ExitDrift: exit %d\n%s",
+			code,
+			output.String(),
 		)
 	}
 

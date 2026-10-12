@@ -71,23 +71,11 @@ func TestIndexBuildMissingAllSkippedReturnsBeforeAI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	oldRepo, oldJSON, oldQuiet := flagRepo, flagJSON, flagQuiet
-	flagRepo, flagJSON, flagQuiet = root, false, false
-	t.Cleanup(func() {
-		flagRepo, flagJSON, flagQuiet = oldRepo, oldJSON, oldQuiet
-	})
-
-	command := newIndexBuildCmd()
-	if err := command.Flags().Set("missing", "true"); err != nil {
-		t.Fatal(err)
-	}
-
+	stdout, stderr, code := runCLI(t, root, "index", "build", "--missing")
 	var output bytes.Buffer
-	command.SetOut(&output)
-	command.SetErr(&output)
-
-	if err := command.RunE(command, nil); err != nil {
-		t.Fatalf("全部为Skipped时应在AI前成功返回: %v\n%s", err, output.String())
+	output.WriteString(stdout + stderr)
+	if code != ExitOK {
+		t.Fatalf("全部为Skipped时应在AI前成功返回: exit %d\n%s", code, output.String())
 	}
 
 	if !strings.Contains(output.String(), "确定性跳过 1 条") ||

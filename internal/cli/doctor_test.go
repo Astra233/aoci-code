@@ -43,6 +43,7 @@ func runDoctor(t *testing.T, workDir string, args ...string) (string, error) {
 // —— 第一层: 纯逻辑单元测试(doctorReport 三态与失败计数)——
 
 func TestDoctorReport_FailureCounting(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	rep := &doctorReport{out: &buf}
 
@@ -71,6 +72,7 @@ func TestDoctorReport_FailureCounting(t *testing.T) {
 }
 
 func TestDoctorReport_StateMark(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		state checkState
 		want  string
@@ -88,6 +90,7 @@ func TestDoctorReport_StateMark(t *testing.T) {
 }
 
 func TestDoctorReport_LineWithoutDetail(t *testing.T) {
+	t.Parallel()
 	var buf bytes.Buffer
 	rep := &doctorReport{out: &buf}
 	rep.line(statePass, "无详情项", "")

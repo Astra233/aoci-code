@@ -23,12 +23,15 @@ func runBoundUpdateEntry(
 	sourceSHA256 string,
 ) error {
 	t.Helper()
-	oldRepo, oldQuiet := flagRepo, flagQuiet
-	flagRepo, flagQuiet = root, true
-	t.Cleanup(func() { flagRepo, flagQuiet = oldRepo, oldQuiet })
-	command := newUpdateEntryCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
+	arguments := []string{"--quiet", "update-entry"}
+	arguments = append(arguments, boundUpdateEntryArguments(sourceSHA256)...)
+	_, stderr, code := runCLI(t, root, arguments...)
+	return exitError(stderr, code)
+}
+
+// boundUpdateEntryArguments are the update-entry arguments every binding case
+// shares, with the source binding appended when one is given.
+func boundUpdateEntryArguments(sourceSHA256 string) []string {
 	arguments := []string{
 		"--path", "a.go",
 		"--entry", "a.go[XUT5T]: F:Exercises public single-entry recovery | R:- | A:- | S:Preserves source binding",
@@ -36,8 +39,7 @@ func runBoundUpdateEntry(
 	if sourceSHA256 != "" {
 		arguments = append(arguments, "--source-sha256", sourceSHA256)
 	}
-	command.SetArgs(arguments)
-	return command.Execute()
+	return arguments
 }
 
 func TestUpdateEntryCLIProductionOutputFollowsProjectLocale(t *testing.T) {
@@ -53,27 +55,10 @@ func TestUpdateEntryCLIProductionOutputFollowsProjectLocale(t *testing.T) {
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
-	previousLocale := textassets.ActiveLocale()
-	if err := textassets.SetActiveLocale(textassets.DefaultLocale); err != nil {
-		t.Fatal(err)
-	}
-	oldRepo, oldQuiet := flagRepo, flagQuiet
-	flagRepo, flagQuiet = root, false
-	t.Cleanup(func() {
-		flagRepo, flagQuiet = oldRepo, oldQuiet
-		_ = textassets.SetActiveLocale(previousLocale)
-	})
-
 	entry := "c.go[XUT5T]: F:Provides an English CLI output fixture | R:- | A:- | S:Preserves source binding"
-	command := newUpdateEntryCmd()
-	var preview bytes.Buffer
-	command.SetOut(&preview)
-	command.SetArgs([]string{"--path", "c.go", "--entry", entry, "--preview"})
-	if err := command.Execute(); err != nil {
-		t.Fatalf("en-US preview failed: %v", err)
-	}
-	assertNoHanCLIOutput(t, "en-US preview", preview.String())
-	if !utf8.Valid(preview.Bytes()) {
+	preview := mustCLI(t, root, "update-entry", "--path", "c.go", "--entry", entry, "--preview")
+	assertNoHanCLIOutput(t, "en-US preview", preview)
+	if !utf8.ValidString(preview) {
 		t.Fatal("en-US preview is not valid UTF-8")
 	}
 
@@ -81,14 +66,8 @@ func TestUpdateEntryCLIProductionOutputFollowsProjectLocale(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	command = newUpdateEntryCmd()
-	var applied bytes.Buffer
-	command.SetOut(&applied)
-	command.SetArgs([]string{"--path", "c.go", "--entry", entry, "--source-sha256", fingerprint.SHA256})
-	if err := command.Execute(); err != nil {
-		t.Fatalf("en-US apply failed: %v", err)
-	}
-	assertNoHanCLIOutput(t, "en-US apply", applied.String())
+	applied := mustCLI(t, root, "update-entry", "--path", "c.go", "--entry", entry, "--source-sha256", fingerprint.SHA256)
+	assertNoHanCLIOutput(t, "en-US apply", applied)
 
 	var jsonOutput, jsonError bytes.Buffer
 	code := executeCLI(
@@ -104,30 +83,14 @@ func TestUpdateEntryCLIProductionOutputFollowsProjectLocale(t *testing.T) {
 
 func TestUpdateEntryCLIChinesePreviewRemainsChinese(t *testing.T) {
 	root, _ := buildManualAtomicEntriesRepo(t)
-	previousLocale := textassets.ActiveLocale()
-	if err := textassets.SetActiveLocale(textassets.LegacyLocale); err != nil {
-		t.Fatal(err)
-	}
-	oldRepo, oldQuiet := flagRepo, flagQuiet
-	flagRepo, flagQuiet = root, false
-	t.Cleanup(func() {
-		flagRepo, flagQuiet = oldRepo, oldQuiet
-		_ = textassets.SetActiveLocale(previousLocale)
-	})
-	command := newUpdateEntryCmd()
-	var output bytes.Buffer
-	command.SetOut(&output)
-	command.SetArgs([]string{
+	output := mustCLI(t, root, "update-entry",
 		"--path", "a.go",
 		"--entry", "a.go[XUT5T]: F:中文预览 | R:- | A:- | S:保留绑定",
 		"--preview",
-	})
-	if err := command.Execute(); err != nil {
-		t.Fatalf("zh-CN preview failed: %v", err)
-	}
+	)
 	for _, anchor := range []string{"预览", "正式索引", "零写入"} {
-		if !strings.Contains(output.String(), anchor) {
-			t.Fatalf("zh-CN preview missing %q: %s", anchor, output.String())
+		if !strings.Contains(output, anchor) {
+			t.Fatalf("zh-CN preview missing %q: %s", anchor, output)
 		}
 	}
 }
@@ -138,31 +101,20 @@ func TestUpdateEntryCLIPreviewReturnsSharedRepairFindingJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oldRepo, oldJSON, oldQuiet := flagRepo, flagJSON, flagQuiet
-	flagRepo, flagJSON, flagQuiet = root, true, false
-	t.Cleanup(func() {
-		flagRepo, flagJSON, flagQuiet = oldRepo, oldJSON, oldQuiet
-	})
-
-	command := newUpdateEntryCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-	var output bytes.Buffer
-	command.SetOut(&output)
-	command.SetArgs([]string{
+	output, stderr, code := runCLI(t, root, "--json", "update-entry",
 		"--path", "main.go",
 		"--entry", "main.go[CD7S]: F:run the deterministic CLI fixture | R:- | A:a,b,c,d,e,f,g | S:-",
 		"--source-sha256", fingerprint.SHA256,
 		"--preview",
-	})
-	err = command.Execute()
-	var exitErr *ExitError
-	if !errors.As(err, &exitErr) || exitErr.Code != ExitInvalid || exitErr.Msg != "" {
-		t.Fatalf("repair Preview must use the silent machine report: %v", err)
+	)
+	// A silent machine report: the exit code says invalid, the JSON says why,
+	// and nothing reaches stderr.
+	if code != ExitInvalid || stderr != "" {
+		t.Fatalf("repair Preview must use the silent machine report: exit %d stderr=%q", code, stderr)
 	}
 	var report updateEntryRepairReport
-	if err := json.Unmarshal(output.Bytes(), &report); err != nil {
-		t.Fatalf("repair Preview did not emit one JSON object: %v\n%s", err, output.String())
+	if err := json.Unmarshal([]byte(output), &report); err != nil {
+		t.Fatalf("repair Preview did not emit one JSON object: %v\n%s", err, output)
 	}
 	if report.Status != entriesAutoStatusRepairRequired || report.Attempted != 1 ||
 		report.Applied != 0 || report.Remaining != 1 || report.FormalWritesStarted ||
@@ -215,7 +167,10 @@ func TestUpdateEntryCLIRequiresBindingAndReportsBaselineFailure(t *testing.T) {
 		t.Fatal("the index write before Baseline failure must remain visible")
 	}
 	unblockBaseline()
-	if err := runBoundUpdateEntry(t, root, fingerprint.SHA256); err != nil {
-		t.Fatalf("replaying the same binding should recover only Baseline: %v", err)
+	// The failed write left its receipt, so the command line now routes to the
+	// recovery commands; the replay semantics belong to the write pipeline
+	// itself and are exercised below that gate.
+	if output, err := runBelowRecoveryGate(t, root, newUpdateEntryCmd(), boundUpdateEntryArguments(fingerprint.SHA256)...); err != nil {
+		t.Fatalf("replaying the same binding should recover only Baseline: %v\n%s", err, output)
 	}
 }

@@ -299,34 +299,14 @@ func TestEntriesStageRequestFilePreservesChinese(
 		true,
 	)
 
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-
-	flagRepo = root
-	flagJSON = true
-
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-	})
-
-	command := newIndexAgentStageCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-
+	stdout, stderr, code := runCLI(t, root, "--json", "index", "agent", "stage", "--request-file", requestPath)
 	var output bytes.Buffer
+	output.WriteString(stdout + stderr)
 
-	command.SetOut(&output)
-	command.SetErr(&output)
-	command.SetArgs([]string{
-		"--request-file",
-		requestPath,
-	})
-
-	if err := command.Execute(); err != nil {
+	if code != ExitOK {
 		t.Fatalf(
-			"Entries request-file Stage失败: %v\n%s",
-			err,
+			"Entries request-file Stage失败: exit %d\n%s",
+			code,
 			output.String(),
 		)
 	}
@@ -402,36 +382,14 @@ func TestHeaderStageRequestFilePreservesChinese(
 		false,
 	)
 
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-
-	flagRepo = root
-	flagJSON = true
-
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-	})
-
-	command :=
-		newIndexAgentHeaderStageCmd()
-
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-
+	stdout, stderr, code := runCLI(t, root, "--json", "index", "agent", "header", "stage", "--request-file", requestPath)
 	var output bytes.Buffer
+	output.WriteString(stdout + stderr)
 
-	command.SetOut(&output)
-	command.SetErr(&output)
-	command.SetArgs([]string{
-		"--request-file",
-		requestPath,
-	})
-
-	if err := command.Execute(); err != nil {
+	if code != ExitOK {
 		t.Fatalf(
-			"Header request-file Stage失败: %v\n%s",
-			err,
+			"Header request-file Stage失败: exit %d\n%s",
+			code,
 			output.String(),
 		)
 	}

@@ -2,12 +2,12 @@ package cli
 
 import (
 	"bytes"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/aoci-spec/aoci-code/internal/testkit"
 	"github.com/aoci-spec/aoci-code/textassets"
 )
 
@@ -16,29 +16,10 @@ import (
 // through the command writer, so both streams are returned together.
 func runQoderDoctorStep(t *testing.T, args ...string) (int, string) {
 	t.Helper()
-	// executeCLI leaves --repo in the package-level flag; restore it so later
-	// tests that drive newDoctorCmd directly do not inherit a deleted root.
-	previousRepo, previousJSON, previousQuiet := flagRepo, flagJSON, flagQuiet
-	t.Cleanup(func() { flagRepo, flagJSON, flagQuiet = previousRepo, previousJSON, previousQuiet })
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldStdout := os.Stdout
-	os.Stdout = writer
-	defer func() { os.Stdout = oldStdout }()
-	captured := make(chan []byte, 1)
-	go func() {
-		data, _ := io.ReadAll(reader)
-		captured <- data
-	}()
 	var stdout, stderr bytes.Buffer
-	code := executeCLI(args, &stdout, &stderr)
-	_ = writer.Close()
-	os.Stdout = oldStdout
-	direct := <-captured
-	_ = reader.Close()
-	return code, string(direct) + stdout.String() + stderr.String()
+	var code int
+	direct := testkit.CaptureStdout(t, func() { code = executeCLI(args, &stdout, &stderr) })
+	return code, direct + stdout.String() + stderr.String()
 }
 
 // After `init --agent qoder`, doctor reports the Qoder row as configured, and

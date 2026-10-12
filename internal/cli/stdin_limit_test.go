@@ -21,6 +21,7 @@ import (
 )
 
 func TestReadLimitedInputAcceptsExactlyTheLimit(t *testing.T) {
+	t.Parallel()
 	body := bytes.Repeat([]byte("a"), 1024)
 	data, oversize, err := readLimitedInput(bytes.NewReader(body), 1024)
 	if err != nil || oversize {
@@ -32,6 +33,7 @@ func TestReadLimitedInputAcceptsExactlyTheLimit(t *testing.T) {
 }
 
 func TestReadLimitedInputRejectsOneByteOverTheLimit(t *testing.T) {
+	t.Parallel()
 	body := bytes.Repeat([]byte("a"), 1025)
 	data, oversize, err := readLimitedInput(bytes.NewReader(body), 1024)
 	if err != nil || !oversize {
@@ -65,6 +67,7 @@ func (r *countingReader) Read(p []byte) (int, error) {
 }
 
 func TestReadLimitedInputStopsAtTheLimitInsteadOfDrainingTheStream(t *testing.T) {
+	t.Parallel()
 	reader := &countingReader{remaining: 8 << 20}
 	if _, oversize, err := readLimitedInput(reader, 1024); err != nil || !oversize {
 		t.Fatalf("oversize=%v err=%v", oversize, err)
@@ -79,6 +82,7 @@ type failingReader struct{}
 func (failingReader) Read([]byte) (int, error) { return 0, errors.New("stdin exploded") }
 
 func TestReadLimitedInputPropagatesReaderFailure(t *testing.T) {
+	t.Parallel()
 	if _, oversize, err := readLimitedInput(failingReader{}, 1024); err == nil || oversize {
 		t.Fatalf("a reader failure is neither success nor oversize: oversize=%v err=%v", oversize, err)
 	}
@@ -88,36 +92,21 @@ func TestReadLimitedInputPropagatesReaderFailure(t *testing.T) {
 // write is allowed through, never buffered and never blocking the workflow.
 func TestHookFailsOpenOnOversizeStdin(t *testing.T) {
 	root, _ := buildManualAtomicEntriesRepo(t)
-	oldRepo, oldQuiet := flagRepo, flagQuiet
-	flagRepo, flagQuiet = root, true
-	t.Cleanup(func() { flagRepo, flagQuiet = oldRepo, oldQuiet })
-
-	command := newHookCmd()
-	command.SilenceUsage, command.SilenceErrors = true, true
-	command.SetIn(strings.NewReader(`{"tool_name":"Edit","tool_input":{"file_path":"a.go"}}` +
-		strings.Repeat(" ", int(hookInputMaxBytes)+1)))
-	command.SetOut(io.Discard)
-	command.SetArgs([]string{"pretool", "--agent", "claude", "--stdin-json"})
-	if err := command.Execute(); err != nil {
-		t.Fatalf("hook must fail open on oversize stdin, got %v", err)
+	payload := strings.NewReader(`{"tool_name":"Edit","tool_input":{"file_path":"a.go"}}` +
+		strings.Repeat(" ", int(hookInputMaxBytes)+1))
+	_, stderr, code := runCLIStdin(t, root, payload, "--quiet", "hook", "pretool", "--agent", "claude", "--stdin-json")
+	if code != ExitOK {
+		t.Fatalf("hook must fail open on oversize stdin, got exit %d: %s", code, stderr)
 	}
 }
 
 func TestUpdateEntryRejectsEntryAndStdinTogether(t *testing.T) {
 	root, _ := buildManualAtomicEntriesRepo(t)
-	oldRepo, oldQuiet := flagRepo, flagQuiet
-	flagRepo, flagQuiet = root, true
-	t.Cleanup(func() { flagRepo, flagQuiet = oldRepo, oldQuiet })
-
-	command := newUpdateEntryCmd()
-	command.SilenceUsage, command.SilenceErrors = true, true
-	command.SetIn(strings.NewReader("a.go[XUT5T]: F:from stdin | R:- | A:- | S:-"))
-	command.SetArgs([]string{"--path", "a.go", "--stdin",
-		"--entry", "a.go[XUT5T]: F:from flag | R:- | A:- | S:-"})
-	err := command.Execute()
-	var exit *ExitError
-	if !errors.As(err, &exit) || exit.Code != ExitConfig {
-		t.Fatalf("two input modes at once must fail before any write, got %v", err)
+	_, stderr, code := runCLIStdin(t, root, strings.NewReader("a.go[XUT5T]: F:from stdin | R:- | A:- | S:-"),
+		"--quiet", "update-entry", "--path", "a.go", "--stdin",
+		"--entry", "a.go[XUT5T]: F:from flag | R:- | A:- | S:-")
+	if code != ExitConfig {
+		t.Fatalf("two input modes at once must fail before any write, got exit %d: %s", code, stderr)
 	}
 }
 
@@ -127,18 +116,10 @@ func TestUpdateEntryRejectsOversizeStdinBeforeAnyWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oldRepo, oldQuiet := flagRepo, flagQuiet
-	flagRepo, flagQuiet = root, true
-	t.Cleanup(func() { flagRepo, flagQuiet = oldRepo, oldQuiet })
-
-	command := newUpdateEntryCmd()
-	command.SilenceUsage, command.SilenceErrors = true, true
-	command.SetIn(&countingReader{remaining: machinecontract.EntriesRequestMaxBytes + 1})
-	command.SetArgs([]string{"--path", "a.go", "--stdin"})
-	execErr := command.Execute()
-	var exit *ExitError
-	if !errors.As(execErr, &exit) || exit.Code != ExitConfig {
-		t.Fatalf("oversize stdin must be refused as a configuration error, got %v", execErr)
+	_, stderr, code := runCLIStdin(t, root, &countingReader{remaining: machinecontract.EntriesRequestMaxBytes + 1},
+		"--quiet", "update-entry", "--path", "a.go", "--stdin")
+	if code != ExitConfig {
+		t.Fatalf("oversize stdin must be refused as a configuration error, got exit %d: %s", code, stderr)
 	}
 	after, err := os.ReadFile(filepath.Join(root, "aoci.txt"))
 	if err != nil {

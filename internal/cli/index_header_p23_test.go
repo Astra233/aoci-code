@@ -6,7 +6,6 @@
 package cli
 
 import (
-	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -55,25 +54,8 @@ func runHeaderDiffForP23(
 ) (string, error) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	flagRepo = root
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-	})
-
-	cmd := newHeaderDiffCmd()
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-
-	var output bytes.Buffer
-	cmd.SetOut(&output)
-	cmd.SetErr(&output)
-
-	err := cmd.RunE(
-		cmd,
-		[]string{runID},
-	)
-	return output.String(), err
+	stdout, stderr, code := runCLI(t, root, "index", "header", "diff", runID)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 // runHeaderApplyForP23执行固定Run的Header Apply并返回输出。
@@ -84,25 +66,8 @@ func runHeaderApplyForP23(
 ) (string, error) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	flagRepo = root
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-	})
-
-	cmd := newHeaderApplyCmd()
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-
-	var output bytes.Buffer
-	cmd.SetOut(&output)
-	cmd.SetErr(&output)
-
-	err := cmd.RunE(
-		cmd,
-		[]string{runID},
-	)
-	return output.String(), err
+	stdout, stderr, code := runCLI(t, root, "index", "header", "apply", runID)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 func TestHeaderDiffAppendsContentReview(

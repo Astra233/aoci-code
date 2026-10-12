@@ -14,17 +14,8 @@ func runConfigForAutomation(
 ) error {
 	t.Helper()
 
-	oldRepo, oldQuiet := flagRepo, flagQuiet
-	flagRepo, flagQuiet = root, true
-	t.Cleanup(func() {
-		flagRepo, flagQuiet = oldRepo, oldQuiet
-	})
-
-	command := findRegisteredCommand(t, "config")
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-	command.SetArgs(args)
-	return command.Execute()
+	_, stderr, code := runCLI(t, root, append([]string{"--quiet", "config"}, args...)...)
+	return exitError(stderr, code)
 }
 
 func TestConfigSetAutomationMode(t *testing.T) {

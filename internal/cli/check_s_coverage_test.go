@@ -14,7 +14,8 @@ import (
 	"github.com/aoci-spec/aoci-code/internal/cognitionbudget"
 	"github.com/aoci-spec/aoci-code/internal/config"
 	"github.com/aoci-spec/aoci-code/internal/machinecontract"
-	"github.com/spf13/cobra"
+	"github.com/aoci-spec/aoci-code/internal/testkit"
+	"github.com/aoci-spec/aoci-code/textassets"
 )
 
 // sCoverageCheckEntry is one Entry of a Legacy check fixture. The expected
@@ -160,6 +161,9 @@ func TestCheckPrintsSCoverageWithoutHintWhenHighImportanceSIsPresent(t *testing.
 // The Volumes branch reads the same figures from the governance budget facts,
 // which is the layout a real repository build reports through.
 func TestVolumeCheckPrintsSCoverageFromGovernanceBudget(t *testing.T) {
+	// The fixture is an en-US repository, and the expected lines below are
+	// rendered from the catalog, so the test renders them in that locale too.
+	testkit.PinLocale(t, textassets.DefaultLocale)
 	root, cfg := alignedVolumeCLIFixture(t, true, false)
 	content := "\n===Code " + filepath.ToSlash(root) + "/===\nmain.go[CD7S]: F:run the deterministic CLI fixture | R:- | A:main | S:-\n"
 	codeVolume, err := os.ReadFile(filepath.Join(root, "aoci.code.txt"))
@@ -201,16 +205,16 @@ func TestVolumeCheckPrintsSCoverageFromGovernanceBudget(t *testing.T) {
 	wantLine := cliMessage("check.s_coverage", machinecontract.HighImportanceMinC, 0, highEntries, percent, cognitionbudget.FormatSCoverageBands(bands))
 	wantHint := cliMessage("check.hint_s_coverage", percent, machinecontract.HighImportanceMinC, machinecontract.HighImportanceSAbsentHintPercent)
 
-	oldRepo, oldJSON, oldQuiet := flagRepo, flagJSON, flagQuiet
-	t.Cleanup(func() { flagRepo, flagJSON, flagQuiet = oldRepo, oldJSON, oldQuiet })
 	for _, asJSON := range []bool{false, true} {
-		flagRepo, flagJSON, flagQuiet = root, asJSON, false
+		arguments := []string{"check"}
+		if asJSON {
+			arguments = []string{"--json", "check"}
+		}
 		var output bytes.Buffer
-		cmd := &cobra.Command{}
-		cmd.SetOut(&output)
-		cmd.SetErr(&output)
-		if err := runCheckCommand(cmd, nil); err != nil {
-			t.Fatalf("aligned Volumes fixture must stay committable (json=%v): %v\n%s", asJSON, err, output.String())
+		stdout, stderr, code := runCLI(t, root, arguments...)
+		output.WriteString(stdout + stderr)
+		if code != ExitOK {
+			t.Fatalf("aligned Volumes fixture must stay committable (json=%v): exit %d\n%s", asJSON, code, output.String())
 		}
 		if asJSON {
 			for _, want := range []string{`"ok": true`, `"high_importance_s_absent_percent": 100`, `"s_coverage": [`} {

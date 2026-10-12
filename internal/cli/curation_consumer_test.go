@@ -174,32 +174,15 @@ func TestVerifyAndScoreExposeFileCurationState(
 ) {
 	root := buildCurationConsumerRepo(t)
 
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	oldQuiet := flagQuiet
-	flagRepo = root
-	flagJSON = true
-	flagQuiet = false
-
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-		flagQuiet = oldQuiet
-	})
-
-	command := newVerifyCmd()
-
+	stdout, stderr, code := runCLI(t, root, "--json", "verify")
 	var output bytes.Buffer
-	command.SetOut(&output)
-	command.SetErr(&output)
-
-	err := command.RunE(command, nil)
-	var exitError *ExitError
-	if !errors.As(err, &exitError) ||
-		exitError.Code != ExitDrift {
+	output.WriteString(stdout)
+	if code != ExitDrift {
 		t.Fatalf(
-			"存在原始Missing时verify应ExitDrift: %v",
-			err,
+			"存在原始Missing时verify应ExitDrift: exit %d\n%s%s",
+			code,
+			stdout,
+			stderr,
 		)
 	}
 

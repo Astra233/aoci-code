@@ -15,7 +15,6 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -491,31 +490,13 @@ func TestAgentGuideCommandJSON(
 		true,
 	)
 
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	flagRepo = root
-	flagJSON = true
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-	})
-
-	command := newIndexAgentGuideCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-
+	stdout, stderr, code := runCLI(t, root, "--json", "index", "agent", "guide", "--agent", "codex")
 	var output bytes.Buffer
-	command.SetOut(&output)
-	command.SetErr(&output)
-	command.SetArgs([]string{
-		"--agent",
-		"codex",
-	})
-
-	if err := command.Execute(); err != nil {
+	output.WriteString(stdout + stderr)
+	if code != ExitOK {
 		t.Fatalf(
-			"Guide JSON命令失败: %v\n%s",
-			err,
+			"Guide JSON命令失败: exit %d\n%s",
+			code,
 			output.String(),
 		)
 	}
@@ -546,30 +527,13 @@ func TestAgentGuideCommandJSON(
 func TestAgentGuideCommandRejectsInvalidAgent(
 	t *testing.T,
 ) {
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	flagRepo = t.TempDir()
-	flagJSON = false
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-	})
-
-	command := newIndexAgentGuideCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-	command.SetArgs([]string{
-		"--agent",
-		"bad agent",
-	})
-
-	err := command.Execute()
-	var exitErr *ExitError
-	if !errors.As(err, &exitErr) ||
-		exitErr.Code != ExitConfig {
+	stdout, stderr, code := runCLI(t, t.TempDir(), "index", "agent", "guide", "--agent", "bad agent")
+	if code != ExitConfig {
 		t.Fatalf(
-			"非法Agent应为ExitConfig: %v",
-			err,
+			"非法Agent应为ExitConfig: exit %d\n%s%s",
+			code,
+			stdout,
+			stderr,
 		)
 	}
 }

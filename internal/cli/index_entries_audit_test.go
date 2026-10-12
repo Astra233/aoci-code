@@ -11,7 +11,6 @@
 package cli
 
 import (
-	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -28,22 +27,8 @@ func runEntriesDiffForAudit(
 ) (string, error) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	flagRepo = root
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-	})
-
-	cmd := newEntriesDiffCmd()
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-
-	err := cmd.RunE(cmd, []string{runID})
-	return out.String(), err
+	stdout, stderr, code := runCLI(t, root, "index", "entries", "diff", runID)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 func runEntriesApplyForAudit(
@@ -53,22 +38,8 @@ func runEntriesApplyForAudit(
 ) (string, error) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	flagRepo = root
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-	})
-
-	cmd := newEntriesApplyCmd()
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-
-	err := cmd.RunE(cmd, []string{runID})
-	return out.String(), err
+	stdout, stderr, code := runCLI(t, root, "index", "entries", "apply", runID)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 func writeAuditSourceFile(

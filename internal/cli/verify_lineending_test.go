@@ -105,22 +105,10 @@ func runVerifyLineEndingJSON(
 ) {
 	t.Helper()
 
-	withVerifyFlags(
-		t,
-		root,
-		true,
-	)
-
-	command := newVerifyCmd()
+	stdout, stderr, code := runCLI(t, root, "--json", "verify")
 	var output bytes.Buffer
-
-	command.SetOut(&output)
-	command.SetErr(&output)
-
-	runErr := command.RunE(
-		command,
-		nil,
-	)
+	output.WriteString(stdout)
+	runErr := exitError(stderr+stdout, code)
 
 	var report verifyReport
 

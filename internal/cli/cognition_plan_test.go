@@ -58,6 +58,7 @@ func initCLITestGitRepository(t *testing.T, root string) {
 
 func TestCognitionPlanCommandDoesNotReplaceInit(t *testing.T) {
 	root := newRootCmd()
+	t.Cleanup(func() { detachRegisteredCommands(root) })
 	initCommand, _, initErr := root.Find([]string{"init"})
 	plannerCommand, _, plannerErr := root.Find([]string{"cognition", "plan", "bootstrap"})
 	if initErr != nil || plannerErr != nil || initCommand.CommandPath() == plannerCommand.CommandPath() {

@@ -10,11 +10,10 @@
 //
 // 夹具: 自造最小仓(索引含字典头部+一段) + 手工落 entries 草稿批次
 // (不走 build —— 隔离 AI 层,草稿内容完全受控)。
-// flagRepo 全局覆盖定根,不并行;命令直取 newEntriesCheckCmd().RunE。
+// 命令经 runCLI 执行 `aoci --repo <root> index entries check <run>`。
 package cli
 
 import (
-	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -68,21 +67,11 @@ func buildEntriesRepo(t *testing.T, drafts map[string]string) (root, runID strin
 	return root, runID
 }
 
-// runEntriesCheck 以 flagRepo 覆盖定根执行 entries check,返回输出与错误。
+// runEntriesCheck 执行 entries check,返回两路输出与按退出码构造的错误。
 func runEntriesCheck(t *testing.T, root, runID string) (string, error) {
 	t.Helper()
-	old := flagRepo
-	flagRepo = root
-	t.Cleanup(func() { flagRepo = old })
-
-	cmd := newEntriesCheckCmd()
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	err := cmd.RunE(cmd, []string{runID})
-	return out.String(), err
+	stdout, stderr, code := runCLI(t, root, "index", "entries", "check", runID)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 // readEntriesIndex 读回索引全文(零副作用断言用)。

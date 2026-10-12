@@ -2,7 +2,6 @@
 package cli
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,54 +11,18 @@ import (
 	"github.com/aoci-spec/aoci-code/internal/config"
 	"github.com/aoci-spec/aoci-code/internal/draft"
 	"github.com/aoci-spec/aoci-code/internal/ledger"
-	"github.com/spf13/cobra"
 )
 
-// findRegisteredCommand从subCommands按名取得命令。
-func findRegisteredCommand(
-	t *testing.T,
-	name string,
-) *cobra.Command {
-	t.Helper()
-
-	for _, command := range subCommands {
-		if command.Name() == name {
-			return command
-		}
-	}
-
-	t.Fatalf("命令%s未注册", name)
-	return nil
-}
-
-// runCheck使用flagRepo指定测试仓库并执行aoci check。
+// runCheck runs `aoci check` against root and returns both streams with the
+// exit code as an error, the shape the assertions below were written for.
 func runCheck(
 	t *testing.T,
 	root string,
 ) (string, error) {
 	t.Helper()
 
-	old := flagRepo
-	flagRepo = root
-
-	t.Cleanup(func() {
-		flagRepo = old
-	})
-
-	command := findRegisteredCommand(
-		t,
-		"check",
-	)
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-
-	var output bytes.Buffer
-	command.SetOut(&output)
-	command.SetErr(&output)
-	command.SetArgs([]string{})
-
-	err := command.Execute()
-	return output.String(), err
+	stdout, stderr, code := runCLI(t, root, "check")
+	return stdout + stderr, exitError(stderr, code)
 }
 
 // TestCheckCleanRepo验证全净仓返回可提交。

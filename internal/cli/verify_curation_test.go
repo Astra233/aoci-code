@@ -4,7 +4,6 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,26 +138,21 @@ func buildVerifyCurationRepo(
 	return root
 }
 
-func withVerifyFlags(
+// runVerifyForCuration runs `aoci verify` against root, in JSON when asked,
+// and returns the two streams with the exit code.
+func runVerifyForCuration(
 	t *testing.T,
 	root string,
 	jsonMode bool,
-) {
+) (*bytes.Buffer, *bytes.Buffer, int) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	oldQuiet := flagQuiet
-
-	flagRepo = root
-	flagJSON = jsonMode
-	flagQuiet = false
-
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-		flagQuiet = oldQuiet
-	})
+	arguments := []string{"verify"}
+	if jsonMode {
+		arguments = []string{"--json", "verify"}
+	}
+	stdout, stderr, code := runCLI(t, root, arguments...)
+	return bytes.NewBufferString(stdout), bytes.NewBufferString(stderr), code
 }
 
 func TestCollectCurationExcludedMissingKeepsOrder(
@@ -263,34 +257,12 @@ func TestVerifyMixedCurationAndActionableStillDrifts(
 		t,
 		true,
 	)
-	withVerifyFlags(
-		t,
-		root,
-		false,
-	)
-
-	cmd := newVerifyCmd()
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-
-	cmd.SetOut(&out)
-	cmd.SetErr(&errOut)
-
-	err := cmd.RunE(
-		cmd,
-		nil,
-	)
-
-	var exitErr *ExitError
-
-	if !errors.As(
-		err,
-		&exitErr,
-	) ||
-		exitErr.Code != ExitDrift {
+	out, _, code := runVerifyForCuration(t, root, false)
+	if code != ExitDrift {
 		t.Fatalf(
-			"仍有ActionableMissing时应为ExitDrift: %v",
-			err,
+			"仍有ActionableMissing时应为ExitDrift: exit %d\n%s",
+			code,
+			out.String(),
 		)
 	}
 
@@ -366,27 +338,13 @@ func TestVerifyOnlyCurationExcludedReturnsSuccess(
 		t,
 		false,
 	)
-	withVerifyFlags(
-		t,
-		root,
-		true,
-	)
-
-	cmd := newVerifyCmd()
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-
-	cmd.SetOut(&out)
-	cmd.SetErr(&errOut)
-
-	if err := cmd.RunE(
-		cmd,
-		nil,
-	); err != nil {
+	out, errOut, code := runVerifyForCuration(t, root, true)
+	if code != ExitOK {
 		t.Fatalf(
-			"只有已exclude的原始Missing时verify应exit=0: %v\n%s",
-			err,
+			"只有已exclude的原始Missing时verify应exit=0: exit %d\n%s%s",
+			code,
 			out.String(),
+			errOut.String(),
 		)
 	}
 
@@ -437,34 +395,12 @@ func TestVerifyCommandJSONExposesCurationSubset(
 		t,
 		true,
 	)
-	withVerifyFlags(
-		t,
-		root,
-		true,
-	)
-
-	cmd := newVerifyCmd()
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-
-	cmd.SetOut(&out)
-	cmd.SetErr(&errOut)
-
-	err := cmd.RunE(
-		cmd,
-		nil,
-	)
-
-	var exitErr *ExitError
-
-	if !errors.As(
-		err,
-		&exitErr,
-	) ||
-		exitErr.Code != ExitDrift {
+	out, _, code := runVerifyForCuration(t, root, true)
+	if code != ExitDrift {
 		t.Fatalf(
-			"JSON模式仍有ActionableMissing时应为ExitDrift: %v",
-			err,
+			"JSON模式仍有ActionableMissing时应为ExitDrift: exit %d\n%s",
+			code,
+			out.String(),
 		)
 	}
 

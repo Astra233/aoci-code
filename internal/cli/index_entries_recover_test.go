@@ -18,7 +18,6 @@ import (
 	"github.com/aoci-spec/aoci-code/internal/indexgen"
 	"github.com/aoci-spec/aoci-code/internal/ledger"
 	"github.com/aoci-spec/aoci-code/internal/mcptools"
-	"github.com/spf13/cobra"
 )
 
 const supersedingEntryA = "a.go[XUT5T]: F:后续合法职责甲 | R:b.go | A:- | S:-"
@@ -748,14 +747,6 @@ func TestTamperedGovernanceReceiptRestoresPendingState(t *testing.T) {
 func TestResolvedEntriesRunUnblocksCheckAndGuide(t *testing.T) {
 	root, runID := buildEntriesBaselineIncompleteRun(t)
 	applySupersedingGovernance(t, root, false)
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	flagRepo = root
-	flagJSON = true
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-	})
 	if pending, _ := draft.LatestPendingRun(root, draft.KindEntries); pending != runID {
 		t.Fatalf("恢复前应识别旧pending run: %q", pending)
 	}
@@ -765,71 +756,41 @@ func TestResolvedEntriesRunUnblocksCheckAndGuide(t *testing.T) {
 	if err := guardPendingEntriesForAgent(root); err == nil {
 		t.Fatal("恢复前Guide/Plan不得报告aligned")
 	}
-	for _, command := range []*cobra.Command{
-		newIndexAgentPlanCmd(), newIndexAgentGuideCmd(),
+	for name, arguments := range map[string][]string{
+		"plan":  {"--json", "index", "agent", "plan"},
+		"guide": {"--json", "index", "agent", "guide", "--agent", "codex"},
 	} {
-		command.SilenceUsage = true
-		command.SilenceErrors = true
-		if command.Name() == "guide" {
-			command.SetArgs([]string{"--agent", "codex"})
-		}
-		var exitErr *ExitError
-		if err := command.Execute(); !errors.As(err, &exitErr) || exitErr.Code != ExitInvalid {
-			t.Fatalf("恢复前%s命令必须fail-closed: %v", command.Name(), err)
+		if stdout, stderr, code := runCLI(t, root, arguments...); code != ExitInvalid {
+			t.Fatalf("恢复前%s命令必须fail-closed: exit %d\n%s%s", name, code, stdout, stderr)
 		}
 	}
 
-	recoverCommand := newEntriesRecoverCmd()
-	recoverCommand.SilenceUsage = true
-	recoverCommand.SilenceErrors = true
-	recoverCommand.SetArgs([]string{runID})
-	var recoverOutput bytes.Buffer
-	recoverCommand.SetOut(&recoverOutput)
-	if err := recoverCommand.Execute(); err != nil {
-		t.Fatalf("公开recover命令失败: %v\n%s", err, recoverOutput.String())
-	}
+	recoverOutput := mustCLI(t, root, "--json", "index", "entries", "recover", runID)
 	var recovered entriesRecoveryResult
-	if err := json.Unmarshal(recoverOutput.Bytes(), &recovered); err != nil ||
+	if err := json.Unmarshal([]byte(recoverOutput), &recovered); err != nil ||
 		recovered.Status != draft.RunResolutionSuperseded {
 		t.Fatalf("公开recover JSON结果不符: err=%v result=%+v", err, recovered)
 	}
 	if pending, err := draft.LatestPendingRun(root, draft.KindEntries); err != nil || pending != "" {
 		t.Fatalf("机器终态不应继续pending: run=%q err=%v", pending, err)
 	}
-	flagJSON = false
 	if output, err := runCheck(t, root); err != nil || !strings.Contains(output, "可提交") {
 		t.Fatalf("恢复后Check应通过: err=%v\n%s", err, output)
 	}
-	flagJSON = true
 	cfg, doc, indexPath := agentPlanLoadDocument(t, root)
 	plan, err := buildAgentPlan(root, cfg, doc, indexPath)
 	if err != nil || plan.Stage != agentPlanStageAligned {
 		t.Fatalf("恢复后Guide/Plan应aligned: err=%v plan=%+v", err, plan)
 	}
-	planCommand := newIndexAgentPlanCmd()
-	planCommand.SilenceUsage = true
-	planCommand.SilenceErrors = true
-	var planOutput bytes.Buffer
-	planCommand.SetOut(&planOutput)
-	if err := planCommand.Execute(); err != nil {
-		t.Fatalf("恢复后Plan命令失败: %v\n%s", err, planOutput.String())
-	}
+	planOutput := mustCLI(t, root, "--json", "index", "agent", "plan")
 	var commandPlan agentPlan
-	if err := json.Unmarshal(planOutput.Bytes(), &commandPlan); err != nil ||
+	if err := json.Unmarshal([]byte(planOutput), &commandPlan); err != nil ||
 		commandPlan.Stage != agentPlanStageAligned {
 		t.Fatalf("恢复后Plan命令未报aligned: err=%v plan=%+v", err, commandPlan)
 	}
-	guideCommand := newIndexAgentGuideCmd()
-	guideCommand.SilenceUsage = true
-	guideCommand.SilenceErrors = true
-	guideCommand.SetArgs([]string{"--agent", "codex"})
-	var guideOutput bytes.Buffer
-	guideCommand.SetOut(&guideOutput)
-	if err := guideCommand.Execute(); err != nil {
-		t.Fatalf("恢复后Guide命令失败: %v\n%s", err, guideOutput.String())
-	}
+	guideOutput := mustCLI(t, root, "--json", "index", "agent", "guide", "--agent", "codex")
 	var guide agentGuide
-	if err := json.Unmarshal(guideOutput.Bytes(), &guide); err != nil ||
+	if err := json.Unmarshal([]byte(guideOutput), &guide); err != nil ||
 		guide.Plan == nil || guide.Plan.Stage != agentPlanStageAligned {
 		t.Fatalf("恢复后Guide命令未报aligned: err=%v guide=%+v", err, guide)
 	}
