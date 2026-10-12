@@ -21,6 +21,16 @@ usage: realrepo.py <name-or-path> [<binary>] [--wave=N] [--label=L] [--ignored-t
                    then $TMPDIR/aoci-realrepo); the report is <work>/<name>-<label>.json
 Options take only the --opt=value form; a space-separated value is read as a positional argument."""
 import hashlib, json, os, shutil, subprocess, sys, tempfile, time
+
+# The suites print fixture output that may carry Chinese text; on a Windows
+# runner the console codec is cp1252, so print the report as UTF-8 regardless.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 args = [a for a in sys.argv[1:] if not a.startswith("--")]

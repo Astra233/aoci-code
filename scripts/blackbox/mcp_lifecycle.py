@@ -37,6 +37,16 @@ Results: scripts/blackbox/results/<run>.json + artifacts/（gitignored）。
 """
 import argparse, base64, hashlib, json, os, re, shutil, socket, subprocess, sys, tempfile, time, traceback
 
+# The suites print fixture output that may carry Chinese text; on a Windows
+# runner the console codec is cp1252, so print the report as UTF-8 regardless.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
+
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 os.environ.setdefault("AOCI_SCENARIO_WORK", tempfile.mkdtemp(prefix="aoci-lifecycle-lib-"))

@@ -19,6 +19,16 @@ from stdio_deadline import rpc_deadline
 
 from stdio_capture import BoundedStderr, stderr_failure
 
+# The suites print fixture output that may carry Chinese text; on a Windows
+# runner the console codec is cp1252, so print the report as UTF-8 regardless.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
+
+
 _REPO_DEFAULT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 REPO = os.environ.get("AOCI_REPO", _REPO_DEFAULT)
 BIN = os.environ.get("AOCI_BIN", os.path.join(REPO, "build", "aoci"))
