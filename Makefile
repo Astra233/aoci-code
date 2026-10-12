@@ -37,7 +37,7 @@ OPENGAUSS_PATCH_GO_FILES := \
 	third_party/openGauss-connector-go-pq/ssl.go \
 	third_party/openGauss-connector-go-pq/aoci_security_patch_test.go
 
-.PHONY: build test fast fast-test fast-builds full verify release-check race vuln database-integration clean-room-smoke example-test vet fmt fmt-check safety check-deps toolchain-preflight opengauss-connector licenses textassets-check update-goldens staticcheck check cross clean
+.PHONY: build test fast fast-test fast-builds full verify release-check race vuln database-integration clean-room-smoke example-test vet fmt fmt-check safety check-deps toolchain-preflight opengauss-connector licenses textassets-check update-goldens staticcheck coverage-floors check cross clean
 
 # 静态编译单二进制,使用Go目标平台的原生可执行文件后缀。
 build:
@@ -140,6 +140,13 @@ staticcheck:
 	else \
 		echo "staticcheck is required for make full"; exit 1; \
 	fi
+
+# Per-package statement-coverage floors for the safety core (scripts/coverage-floors.txt).
+# Runs the listed packages' own tests under -short; full-confidence feeds it the
+# coverage snapshot profile instead. Not part of fast: it is a Tier-1 regression
+# gate for test erosion, not a commit-time check. Script missing = gate broken.
+coverage-floors:
+	@GO_BIN="$(GO_BIN)" bash scripts/check-coverage-floors.sh
 
 # Tier 0: ordinary local commit gate. The independent compiler, vet, dependency,
 # safety, and representative short-test gates run concurrently after formatting.

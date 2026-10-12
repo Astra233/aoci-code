@@ -1,0 +1,30 @@
+# Per-package statement-coverage floors, checked by scripts/check-coverage-floors.sh
+# (make coverage-floors; the full-confidence "coverage floors" step).
+#
+# Format: <import path> <minimum statement coverage in percent>
+# Measurement: the package's own tests under `go test -short -count=1 -cover`.
+#
+# Each floor is the coverage measured when it was set minus 2.0 points, so
+# ordinary jitter (timing-dependent branches, platform skips) passes and a
+# removed or weakened test does not. Raise a floor when coverage rises; lower
+# one only with the reason in the commit message, because it means a guarded
+# path lost its test.
+#
+# internal/cognitionbaseline has no test files of its own (its two functions
+# run only inside the Bootstrap and Migration Apply paths), so its floor is
+# the measured 0.0 until it gets package tests.
+
+github.com/aoci-spec/aoci-code/internal/cognitiontxn 86.4
+github.com/aoci-spec/aoci-code/internal/runmanifest 94.1
+github.com/aoci-spec/aoci-code/internal/managedstate 50.6
+github.com/aoci-spec/aoci-code/internal/cognitionbaseline 0.0
+github.com/aoci-spec/aoci-code/internal/codebatch 64.9
+github.com/aoci-spec/aoci-code/internal/fs 78.1
+github.com/aoci-spec/aoci-code/internal/scopechange 78.5
+github.com/aoci-spec/aoci-code/internal/baseline 73.0
+github.com/aoci-spec/aoci-code/internal/mcptools 79.9
+github.com/aoci-spec/aoci-code/internal/cli 66.4
+github.com/aoci-spec/aoci-code/internal/cognition 80.4
+github.com/aoci-spec/aoci-code/internal/index 80.6
+github.com/aoci-spec/aoci-code/internal/migrationapply 72.9
+github.com/aoci-spec/aoci-code/internal/bootstrapapply 70.5
