@@ -962,9 +962,11 @@ The repository ships four standalone black-box suites under
 binary strictly from outside the process, over the public stdio MCP protocol
 and CLI only:
 
-- **Protocol conformance** — 46 read-only checks of the MCP wire surface;
-- **Fault-injection scenarios** — 65 scenarios covering cursor tampering,
-  crash recovery, and racing writers on disposable fixture repositories;
+- **Protocol conformance** — 53 read-only checks of the MCP wire surface,
+  with the locale-dependent sentences repeated under `zh-CN`;
+- **Fault-injection scenarios** — 75 scenarios covering cursor tampering,
+  crash recovery, racing writers, and the pre-write hook on disposable
+  fixture repositories;
 - **Lifecycle over frozen real projects** — three committed fixture projects:
   `repo-a` (TypeScript) and `repo-b` (Python + MySQL) run the full
   `init`-to-realignment lifecycle, and `repo-c` (a 453-file layered service)

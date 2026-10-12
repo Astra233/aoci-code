@@ -12,15 +12,22 @@ Groups:
   D  concurrency             (fixture: racing writers, snapshot-change mid-chain)
   E  authoring batch size    (fixture: team batch config, bounded transport)
   F  cognition-layer visibility (fixture: git-hidden Volumes, line-ending rewrite)
+  H  pre-write hook          (fixture: aoci hook pretool under the Claude stdin-JSON and
+                              Codex flag shapes; fail-open, Entry injection, strict stale block)
+  N  next commands           (fixture: returned commands run as returned; attested cognition
+                              stays uncertain, not invalid, under tree drift)
   O  optimization            (fixture: direct updates survive a completed optimization)
   P  path names              (fixture: special directory and file names, unspellable directory)
   T  human confirmation      (fixture: real pty, prompt must precede the read)
+  U  status page             (fixture: the local page never disturbs a live governance cycle)
   W  host window             (every non-Overview response fits an ordinary host)
 
 The run also checks that the scenario count published in the public READMEs and
 in scripts/blackbox/README.md matches this run, so those numbers cannot drift.
 
-Usage:  python3 scripts/blackbox/mcp_scenarios.py
+Usage:  python3 scripts/blackbox/mcp_scenarios.py                 # every group, published order
+        python3 scripts/blackbox/mcp_scenarios.py --group H --group O   # only these letters
+        python3 scripts/blackbox/mcp_scenarios.py --list          # letters and what each runs
 Env:    AOCI_REPO / AOCI_BIN 覆盖仓库与二进制路径（默认取本脚本所在仓库）;
         AOCI_SCENARIO_WORK 指定夹具目录并保留（默认系统临时目录、跑完清理）;
         AOCI_SCENARIO_KEEP=1 保留默认临时夹具以便排查。
@@ -28,7 +35,7 @@ Requires: a built binary; group A additionally needs the host repository to hold
 an established multi-chunk overview (chunk_tokens 8000). Fixtures set their own
 git identity; the host repository is never written.
 """
-import base64, hashlib, json, os, random, re, select, shutil, subprocess, sys, tempfile, time
+import argparse, base64, hashlib, json, os, random, re, select, shutil, subprocess, sys, tempfile, time
 import urllib.parse, urllib.request
 
 from stdio_deadline import rpc_deadline
@@ -284,6 +291,8 @@ def fixture_aligned(repo):
 
 # ================================================================ GROUP A
 def group_a():
+    """Delivery fault matrix on the host repository's chunk chain: replayed,
+    tampered, and cross-process cursors (read-only)."""
     g = "A"
     # -- A1 replay + A2 tamper + A3 sha tamper + A4 cross-session: real repo chain
     s = Session(REAL)
@@ -332,6 +341,8 @@ def group_a():
 
 # ================================================================ GROUP B (+A5)
 def group_b():
+    """Write lifecycle on a 160-file fixture: establish, stale refresh, repair
+    round trip, wrong binding, orphan removal (also A5: chunk_tokens change mid-chain)."""
     g = "B"
     NF = 160
     # One call establishing the whole fixture is deliberately a wire-ceiling
@@ -431,6 +442,8 @@ def group_b():
 
 # ================================================================ GROUP C
 def group_c():
+    """Crash recovery: the server killed mid-chain and mid-Apply, six times, must
+    never leave the fixture wedged for the next public-surface caller."""
     g = "C"
     fx = make_fixture("fx-crash", 12)
     s = Session(fx)
@@ -513,6 +526,8 @@ def group_c():
 
 # ================================================================ GROUP D
 def group_d(bigfx=None):
+    """Concurrency: racing writers over the same drift, and an index-byte change
+    versus a Baseline-only change in the middle of a delivery chain."""
     g = "D"
     fx = make_fixture("fx-race", 12)
     s = Session(fx)
@@ -1316,6 +1331,8 @@ def parse_body_entries(body, fx):
     return entries
 
 def group_n():
+    """next_commands are complete, runnable commands that clear what they name;
+    attested cognition under tree drift reads uncertain, never invalid."""
     g = "N"
     # -- N1: 终态证明命令是完整可执行命令, 且逐条真的执行通过
     fx = make_fixture("nextcmd", 6)
@@ -1970,6 +1987,8 @@ def ui_get(base, path):
         return response.status, response.read().decode("utf-8")
 
 def group_u():
+    """The local status page serves verify's facts, never disturbs a live
+    governance cycle, and changes no byte of the repository it reads."""
     g = "U"
     fx = make_fixture("ui-nointerfere", 5)
     page, base = start_ui(fx)
@@ -2103,29 +2122,218 @@ def group_u_detach():
             except Exception:
                 pass
 
+# ================================================================ GROUP H
+def hook(fx, *flags, stdin=None):
+    """Run `aoci hook pretool` the way a host does: flags on argv and, for the
+    Claude Code channel, the host's PreToolUse JSON on stdin. Returns
+    (exit code, stdout, stderr)."""
+    proc = subprocess.run([BIN, "--repo", fx, "hook", "pretool", *flags], cwd=fx, input=stdin,
+                          capture_output=True, text=True, timeout=60)
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def group_h():
+    """Pre-write hook: `aoci hook pretool` under the Claude stdin-JSON and Codex flag shapes.
+
+    The hook runs inside another program's write path, so its first contract is
+    fail-open: malformed host JSON, a host call that carries no file path, a
+    path the repository cannot resolve, or a target the index has never seen
+    must never block the host. Its second contract is the injection: the Entry
+    of a known target comes back verbatim before the write, a stale one carries
+    a STALE warning, and under hook_strict a stale target is the only thing
+    that blocks, with the agent's own exit code: Claude Code reads exit 2 and
+    feeds stderr back to the model, while the generic channel Codex and Cursor
+    use is exit 4 with the text on stdout. A CRLF-only rewrite is the team
+    line-ending tolerance, never stale. Every decision lands in the local
+    Ledger as a hook_trigger that names the tool and whether drift was warned.
+    """
+    g = "H"
+    fx = make_fixture("fx-hook", 3)
+    s = Session(fx)
+    try:
+        m, t, err = maintain(s)
+        applied, tw, err = submit_batch(s, m)
+    finally:
+        s.close()
+    if applied.get("status") != "applied" or applied.get("aligned") is not True:
+        record(g, "H0.setup", "FAIL", f"fixture authoring failed: {tw[:160]}")
+        return
+
+    def claude(path, tool="Edit"):
+        """The PreToolUse JSON Claude Code writes to the hook's stdin."""
+        return json.dumps({"tool_name": tool, "tool_input": {"file_path": path}})
+
+    entry1, entry2, entry3 = entry_line("pkg/f001.go"), entry_line("pkg/f002.go"), entry_line("pkg/f003.go")
+    decisions = 0  # calls that reach an Entry decision; each must land in the Ledger
+
+    # H1: unparseable host JSON is not the hook's problem to raise.
+    rc, out, err = hook(fx, "--agent", "claude", "--stdin-json", stdin="not json {\n")
+    ok = rc == 0 and not out.strip() and not err.strip()
+    record(g, "H1.malformed-host-json-fails-open", "PASS" if ok else "FAIL",
+           f"rc={rc} stdout={out[:60]!r} stderr={err[:60]!r}")
+
+    # H2: a target without an Entry passes, and the hook says how to add one.
+    rc, out, err = hook(fx, "--agent", "claude", "--stdin-json", stdin=claude("pkg/nope.go"))
+    decisions += 1
+    ok = rc == 0 and "pkg/nope.go" in out and "aoci_update_entry" in out
+    record(g, "H2.unindexed-target-fails-open-and-names-aoci_update_entry", "PASS" if ok else "FAIL",
+           f"rc={rc} | {out[:120]!r}")
+
+    # H3: Claude passes file_path relative or absolute; both inject the same Entry.
+    rc1, out1, _ = hook(fx, "--agent", "claude", "--stdin-json", stdin=claude("pkg/f001.go"))
+    rc2, out2, _ = hook(fx, "--agent", "claude", "--stdin-json",
+                        stdin=claude(os.path.join(fx, "pkg", "f001.go"), "Write"))
+    decisions += 2
+    ok = rc1 == 0 and rc2 == 0 and entry1 in out1 and entry1 in out2 and "STALE" not in out1 + out2
+    record(g, "H3.claude-stdin-json-injects-the-entry-for-relative-and-absolute-paths", "PASS" if ok else "FAIL",
+           f"rc={rc1},{rc2} | {out1[:100]!r} | {out2[:100]!r}")
+
+    # H4: the Codex channel carries the same facts as flags.
+    rc, out, err = hook(fx, "--agent", "codex", "--tool", "Edit", "--path", "pkg/f001.go")
+    decisions += 1
+    ok = rc == 0 and entry1 in out and "STALE" not in out
+    record(g, "H4.codex-flag-shape-injects-the-same-entry", "PASS" if ok else "FAIL", f"rc={rc} | {out[:120]!r}")
+
+    # H5: a stale Entry is a warning, not a block, until the team says strict.
+    with open(os.path.join(fx, "pkg", "f001.go"), "a") as fh:
+        fh.write("\nfunc F001b() int { return 1001 }\n")
+    rc, out, err = hook(fx, "--agent", "claude", "--stdin-json", stdin=claude("pkg/f001.go"))
+    decisions += 1
+    ok = rc == 0 and "STALE" in out and entry1 in out
+    record(g, "H5.stale-entry-warns-but-does-not-block-without-strict", "PASS" if ok else "FAIL",
+           f"rc={rc} | {out[:120]!r}")
+
+    # H6: strict + stale blocks Claude with its contract code and the text on stderr.
+    rc_cfg, _, out_cfg, errs_cfg = cli(fx, "config", "set", "hook_strict", "true")
+    rc, out, err = hook(fx, "--agent", "claude", "--stdin-json", stdin=claude("pkg/f001.go"))
+    decisions += 1
+    ok = rc_cfg == 0 and rc == 2 and not out.strip() and "STALE" in err and "f001.go" in err
+    record(g, "H6.strict-stale-target-blocks-claude-with-exit-2-on-stderr", "PASS" if ok else "FAIL",
+           f"config rc={rc_cfg} hook rc={rc} stdout={out[:60]!r} stderr={err[:140]!r}")
+
+    # H7: the generic channel blocks with 4 and keeps the text on stdout.
+    rc, out, err = hook(fx, "--agent", "codex", "--tool", "Edit", "--path", "pkg/f001.go")
+    rcc, outc, errc = hook(fx, "--agent", "cursor", "--tool", "Edit", "--path", "pkg/f001.go")
+    decisions += 2
+    ok = rc == 4 and rcc == 4 and "STALE" in out and entry1 in out and "STALE" in outc and entry1 in outc
+    record(g, "H7.strict-stale-target-blocks-codex-and-cursor-with-exit-4-on-stdout", "PASS" if ok else "FAIL",
+           f"rc={rc},{rcc} | {out[:120]!r}")
+
+    # H8: strict blocks only what is stale: a current sibling injects, and a
+    # CRLF-only rewrite is the tolerance the team configured, not drift.
+    rc1, out1, _ = hook(fx, "--agent", "claude", "--stdin-json", stdin=claude("pkg/f002.go"))
+    with open(os.path.join(fx, "pkg", "f003.go"), "rb") as fh:
+        body = fh.read()
+    with open(os.path.join(fx, "pkg", "f003.go"), "wb") as fh:
+        fh.write(body.replace(b"\n", b"\r\n"))
+    rc2, out2, _ = hook(fx, "--agent", "claude", "--stdin-json", stdin=claude("pkg/f003.go"))
+    decisions += 2
+    ok = rc1 == 0 and entry2 in out1 and rc2 == 0 and entry3 in out2 and "STALE" not in out1 + out2
+    record(g, "H8.strict-leaves-a-current-sibling-and-a-crlf-only-rewrite-open", "PASS" if ok else "FAIL",
+           f"rc={rc1},{rc2} | {out1[:80]!r} | {out2[:80]!r}")
+
+    # H9: strict changes nothing about fail-open.
+    rc1, out1, err1 = hook(fx, "--agent", "claude", "--stdin-json", stdin="{{{")
+    rc2, out2, err2 = hook(fx, "--agent", "claude", "--stdin-json",
+                           stdin=json.dumps({"tool_name": "Bash", "tool_input": {"command": "ls"}}))
+    rc3, out3, err3 = hook(fx, "--agent", "claude", "--stdin-json", stdin=claude("/etc/hosts"))
+    ok = (rc1 == 0 and rc2 == 0 and rc3 == 0 and not (out1 + out2 + err1 + err2 + err3).strip()
+          and "STALE" not in out3)
+    record(g, "H9.strict-still-fails-open-on-malformed-json-no-path-and-foreign-path", "PASS" if ok else "FAIL",
+           f"rc={rc1},{rc2},{rc3} | {out3[:100]!r} {err3[:60]!r}")
+
+    # H10: the Ledger holds one hook_trigger per decision, with the tool and the drift flag.
+    events = []
+    try:
+        with open(os.path.join(fx, ".aoci", "ledger.jsonl"), encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                if event.get("op") == "hook_trigger":
+                    events.append(event)
+    except OSError:
+        pass
+    warned = sum(1 for e in events if e.get("drift_warned"))
+    tools = sorted({str(e.get("tag_filter")) for e in events})
+    ok = len(events) == decisions and warned == 4 and tools == ["Edit", "Write"]
+    record(g, "H10.every-decision-lands-in-the-ledger-with-its-tool-and-drift-flag", "PASS" if ok else "FAIL",
+           f"hook_trigger={len(events)} expected={decisions} drift_warned={warned} tools={tools}")
+
+
 # ---------------------------------------------------------------- main
-if __name__ == "__main__":
+# The no-argument run is the published contract: every group, in exactly this
+# order (group D reuses the fixture group B returns), then the host-window gate
+# and the published-count binding. --group filters this list by letter without
+# reordering it; a filtered run cannot be held to the published count, so that
+# binding is skipped and the run says so.
+GROUP_RUNS = [
+    ("A", group_a), ("B", group_b), ("C", group_c), ("D", group_d), ("E", group_e), ("F", group_f),
+    ("N", group_n), ("F", group_f_scope), ("F", group_f_activate), ("F", group_f_ignored_tool_file),
+    ("F", group_f_held_sources), ("F", group_f_deleted_observe), ("F", group_f_excluded_tracked),
+    ("T", group_t), ("U", group_u), ("U", group_u_detach), ("O", group_o_optimization),
+    ("O", group_o_s_absent_priority), ("P", group_p_special_names), ("P", group_p_unspellable_directory),
+    ("H", group_h),
+]
+HOST_WINDOW_GROUP = "W"
+
+
+def group_letters():
+    """Group letters in first-run order, the host-window gate last."""
+    letters = []
+    for letter, _ in GROUP_RUNS:
+        if letter not in letters:
+            letters.append(letter)
+    return letters + [HOST_WINDOW_GROUP]
+
+
+def list_groups(out=sys.stdout):
+    """One line per group function: letter, function name, docstring first line."""
+    for letter in group_letters():
+        if letter == HOST_WINDOW_GROUP:
+            doc = (host_window_summary.__doc__ or "").strip().splitlines()
+            print(f"{letter}  host_window_summary: {doc[0] if doc else '(no docstring)'}", file=out)
+            continue
+        for run_letter, fn in GROUP_RUNS:
+            if run_letter == letter:
+                doc = (fn.__doc__ or "").strip().splitlines()
+                print(f"{letter}  {fn.__name__}: {doc[0] if doc else '(no docstring)'}", file=out)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="AOCI MCP scenario suite: safety scenarios over disposable fixtures, "
+                    "driving the binary under test from outside the process.",
+        epilog="Groups: " + " ".join(group_letters()) + ". --list prints what each runs.")
+    parser.add_argument("--group", action="append", default=[], metavar="LETTER",
+                        help="run only this group letter (repeatable, case-insensitive); the W gate always "
+                             "runs; without --group every group runs in the published order and the "
+                             "published scenario count is enforced")
+    parser.add_argument("--list", action="store_true",
+                        help="print the group letters with each group function's docstring first line, then exit")
+    args = parser.parse_args(argv)
+    if args.list:
+        list_groups()
+        return 0
+    letters = group_letters()
+    wanted = [letter.upper() for letter in args.group]
+    unknown = sorted(set(wanted) - set(letters))
+    if unknown:
+        print(f"unknown group(s) {unknown}; valid letters: {' '.join(letters)}", file=sys.stderr)
+        return 2
+
     os.makedirs(WORK, exist_ok=True)
-    group_a()
-    bigfx = group_b()
-    group_c()
-    group_d(bigfx)
-    group_e()
-    group_f()
-    group_n()
-    group_f_scope()
-    group_f_activate()
-    group_f_ignored_tool_file()
-    group_f_held_sources()
-    group_f_deleted_observe()
-    group_f_excluded_tracked()
-    group_t()
-    group_u()
-    group_u_detach()
-    group_o_optimization()
-    group_o_s_absent_priority()
-    group_p_special_names()
-    group_p_unspellable_directory()
+    bigfx = None
+    for letter, fn in GROUP_RUNS:
+        if wanted and letter not in wanted:
+            continue
+        if fn is group_b:
+            bigfx = group_b()
+        elif fn is group_d:
+            group_d(bigfx)
+        else:
+            fn()
     ok, detail = host_window_summary()
     record("W", "W1.every-non-overview-response-fits-host-window", "PASS" if ok else "FAIL", detail)
     print()
@@ -2138,10 +2346,15 @@ if __name__ == "__main__":
     # three had drifted to a stale 22. The run is the authority, so it enforces
     # them. Kept out of RESULTS: the published number counts safety scenarios,
     # and counting a documentation check among them would make it self-describing.
-    doc_drift = verify_published_scenario_count(len(RESULTS))
-    print(("PASS " if not doc_drift else "FAIL ")
-          + "[docs] published-scenario-count-matches-this-run | "
-          + ("; ".join(doc_drift) if doc_drift else str(len(RESULTS))))
+    doc_drift = []
+    if wanted:
+        print("SKIP [docs] published-scenario-count-matches-this-run | partial run (--group); "
+              "the binding needs the complete run")
+    else:
+        doc_drift = verify_published_scenario_count(len(RESULTS))
+        print(("PASS " if not doc_drift else "FAIL ")
+              + "[docs] published-scenario-count-matches-this-run | "
+              + ("; ".join(doc_drift) if doc_drift else str(len(RESULTS))))
 
     print(f"SCENARIOS: {npass} PASS, {nchar} CHARACTERIZED, {nfail} FAIL")
     for grp, name, st, d in RESULTS:
@@ -2151,4 +2364,8 @@ if __name__ == "__main__":
         print(f"  FAIL [docs] {drift}")
     if not _KEEP_WORK:
         shutil.rmtree(WORK, ignore_errors=True)
-    sys.exit(1 if (nfail or doc_drift) else 0)
+    return 1 if (nfail or doc_drift) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

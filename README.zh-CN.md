@@ -923,9 +923,10 @@ aoci --repo . index agent guide --agent codex --json
 仓库在 [`scripts/blackbox/`](https://github.com/aoci-spec/aoci-code/blob/main/scripts/blackbox/README.md) 内置四套独立黑盒套件，
 全部站在进程外、只通过公开 stdio MCP 协议与 CLI 检验构建出的 `aoci` 二进制：
 
-- **协议一致性** —— 46 项只读检查，覆盖 MCP 线协议表面；
-- **故障注入场景** —— 65 个场景，在一次性夹具仓库上检验游标篡改、崩溃恢复与
-  并发写入者的安全性；
+- **协议一致性** —— 53 项只读检查，覆盖 MCP 线协议表面，locale 相关语句另在
+  `zh-CN` 下复核一遍；
+- **故障注入场景** —— 75 个场景，在一次性夹具仓库上检验游标篡改、崩溃恢复、
+  并发写入者与写前 hook 的安全性；
 - **冻结真实项目生命周期** —— 三个随仓库冻结的夹具项目：`repo-a`（TypeScript）
   与 `repo-b`（Python + MySQL）走完从 `init` 到漂移重对齐的完整生命周期，
   `repo-c`（453 个文件的分层服务）额外在机器批量上限处检验多批创作。可选的

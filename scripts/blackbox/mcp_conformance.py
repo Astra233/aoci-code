@@ -2,16 +2,18 @@
 """AOCI MCP stdio conformance harness — drives build/aoci mcp as a real client.
 Protocol-level tests only; zero formal writes expected (verified afterward by git/verify).
 
-MCP stdio 一致性检查（46项）：以真实客户端身份走 initialize→tools 全链路，
-只读不写，跑完用 git status / aoci verify 复核零写入。
+MCP stdio 一致性检查（53项）：以真实客户端身份走 initialize→tools 全链路，
+只读不写，跑完用 git status / aoci verify 复核零写入。最后一段 locale 孪生
+检查在临时目录铸造两个同样的三文件夹具（init --locale en-US / zh-CN），对照
+人类语句随 locale 变化而机器字段、键集、错误码与摘要不变；宿主仓库仍只读。
 本脚本跑完会核对公开文档里公布的检查数与本次实跑一致，防止文档悄悄漂移。
 
 Usage:  python3 scripts/blackbox/mcp_conformance.py
 Env:    AOCI_REPO / AOCI_BIN 覆盖仓库与二进制路径（默认取本脚本所在仓库）;
         AOCI_EXPECT_VERSION 设定后严格断言 serverInfo.version，否则只断言非空。
-Requires: an established repository (aoci init + scan done) and a built binary.
+Requires: an established repository (aoci init + scan done), git, and a built binary.
 """
-import hashlib, json, os, re, subprocess, sys
+import hashlib, json, os, re, shutil, subprocess, sys, tempfile
 
 from stdio_deadline import rpc_deadline
 
@@ -37,8 +39,9 @@ RESPONSE_SIZES = []
 HOST_WINDOW_BYTES = 48 * 1024
 
 class Session:
-    def __init__(self):
-        self.p = subprocess.Popen([BIN, "--repo", REPO, "mcp"],
+    def __init__(self, repo=None):
+        self.repo = repo or REPO
+        self.p = subprocess.Popen([BIN, "--repo", self.repo, "mcp"],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding="utf-8", bufsize=1)
         self.stderr_capture = BoundedStderr(self.p.stderr)
@@ -388,6 +391,190 @@ except Exception:
 ok("malformed.orderly_exit_code_1", p3.returncode == 1, str(p3.returncode))
 ok("malformed.stderr_diagnostic", bool(err3.strip()))
 ok("malformed.stdout_stays_pure", out3.strip() == "", repr(out3[:80]))
+
+# ---------- Session 4: locale twins — zh-CN repeats the locale-dependent checks ----------
+# Two identical three-file fixtures are minted under a temp directory, one with
+# `init --locale en-US` and one with `init --locale zh-CN`, and authored to
+# aligned through the same template batch. Human sentences must follow the
+# locale; every machine key, field, code, and digest contract must not. The host
+# repository stays read-only: nothing here touches REPO.
+def has_cjk(text):
+    return any("一" <= ch <= "鿿" for ch in str(text))
+
+def _sh(cwd, *args):
+    r = subprocess.run(list(args), cwd=cwd, capture_output=True, text=True, timeout=120)
+    if r.returncode != 0:
+        raise RuntimeError(f"{args}: {r.stderr[:200]}")
+
+def _cli(repo, *args):
+    r = subprocess.run([BIN, "--repo", repo, *args, "--json"], capture_output=True, text=True, timeout=120)
+    try:
+        body = json.loads(r.stdout)
+    except ValueError:
+        body = {}
+    return r.returncode, body, r.stdout + r.stderr
+
+def _jload(text):
+    try:
+        return json.loads(text[text.index("{"):text.rindex("}") + 1])
+    except Exception:
+        return {}
+
+def parse_kv(text):
+    out = {}
+    for ln in text.splitlines():
+        m = re.match(r"^([a-z_0-9.]+):\s*(.*)$", ln.strip())
+        if m:
+            k, v = m.group(1), m.group(2)
+            out[k] = (v == "true") if v in ("true", "false") else (int(v) if re.fullmatch(r"-?\d+", v) else v)
+    return out
+
+def overview_single(text):
+    """A small index is delivered in one response: kv metadata, the body from
+    its BEGIN line through its END line (what body_sha256 covers), then the
+    cognition-level lines; a chunked one keeps the JSON-plus-MARK shape."""
+    if MARK in text:
+        return meta_and_body(text)
+    begin = text.find("<<<AOCI_OVERVIEW_BODY_BEGIN")
+    end = text.find("<<<AOCI_OVERVIEW_BODY_END", begin)
+    if begin < 0 or end < 0:
+        return parse_kv(text), None
+    stop = text.find("\n", end)
+    stop = len(text) if stop < 0 else stop + 1
+    return parse_kv(text[:begin] + text[stop:]), text[begin:stop]
+
+def locale_twin(work, locale):
+    """Mint one twin: three sources, `init --locale`, scan, and the same
+    template batch through aoci_maintain/aoci_update_entry. Returns (root, session)."""
+    fx = os.path.join(work, f"twin-{locale}")
+    os.makedirs(os.path.join(fx, "pkg"))
+    for i in (1, 2, 3):
+        with open(os.path.join(fx, "pkg", f"f{i:03}.go"), "w", encoding="utf-8") as fh:
+            fh.write(f"package pkg\n\n// fixture unit {i}\nfunc F{i:03}() int {{ return {i} }}\n")
+    _sh(fx, "git", "init", "-q")
+    _sh(fx, "git", "config", "user.email", "fixture@test.invalid")
+    _sh(fx, "git", "config", "user.name", "fixture")
+    _sh(fx, "git", "add", "-A")
+    _sh(fx, "git", "commit", "-q", "-m", "fixture")
+    for step in (("init", "--locale", locale), ("scan",)):
+        rc, _, out = _cli(fx, *step)
+        if rc != 0:
+            raise RuntimeError(f"{step[0]} failed under {locale}: {out[:200]}")
+    session = Session(repo=fx)
+    session.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
+                               "clientInfo": {"name": "aoci-conformance-locale", "version": "1.0"}})
+    session.notify("notifications/initialized")
+    for _ in range(4):
+        m = _jload(text_of(session.call("aoci_maintain"))[0])
+        if m.get("aligned") is True:
+            break
+        entries = [{"path": c["path"], "source_sha256": c["source_sha256"], "candidate_id": c["candidate_id"],
+                    "new_entry": f"{os.path.basename(c['path'])}[CG5T]: F:Provides fixture unit "
+                                 f"{os.path.basename(c['path'])} | R:- | A:- | S:-"}
+                   for c in (m.get("candidates") or [])]
+        r = _jload(text_of(session.call("aoci_update_entry", {
+            "code_batch_id": (m.get("code_plan") or {}).get("batch_id"), "entries": entries}, timeout=300))[0])
+        if r.get("aligned") is True:
+            break
+    return fx, session
+
+LOCALE_CHECKS = ["locale.twin_fixtures_aligned", "locale.rules_zh_chinese_same_machine_facts",
+                 "locale.overview_meta_keys_identical_message_localized",
+                 "locale.attestation_machine_lines_identical", "locale.read_tools_localized_same_machine_tokens",
+                 "locale.maintain_machine_fields_identical", "locale.error_code_identical_hint_localized"]
+MACHINE_LINES = ("model_attestation", "model_full_cognition_reliable", "cognition_level", "cognition_level_state",
+                 "delivery_integrity", "host_delivery_status", "cognition_assimilation", "challenge_passed")
+_work = tempfile.mkdtemp(prefix="aoci-conformance-locale-")
+_twins, _verdicts, _abort = {}, {}, ""
+try:
+    for _loc in ("en-US", "zh-CN"):
+        _twins[_loc] = locale_twin(_work, _loc)
+    (fxE, sE), (fxZ, sZ) = _twins["en-US"], _twins["zh-CN"]
+
+    def _aligned(fx):
+        rc, body, _ = _cli(fx, "verify")
+        return rc == 0 and bool((body.get("governance") or {}).get("governance_aligned"))
+    alE, alZ = _aligned(fxE), _aligned(fxZ)
+    _verdicts["locale.twin_fixtures_aligned"] = (alE and alZ, f"en-US aligned={alE} zh-CN aligned={alZ}")
+
+    rulesE, _ = text_of(sE.call("aoci_rules"))
+    rulesZ, _ = text_of(sZ.call("aoci_rules"))
+    def _machine_facts(text):
+        return [ln for ln in text.splitlines() if re.match(r"^(cognition_refresh_threshold|overview_delivery\.[a-z_]+): ", ln)]
+    anchors = ("1a.", "2a.", "4a.", "4d.")
+    cond = (has_cjk(rulesZ) and not has_cjk(rulesE) and all(a in rulesZ for a in anchors) and all(a in rulesE for a in anchors)
+            and _machine_facts(rulesE) == _machine_facts(rulesZ) and len(_machine_facts(rulesZ)) == 4
+            and rulesE.splitlines()[0] != rulesZ.splitlines()[0])
+    _verdicts["locale.rules_zh_chinese_same_machine_facts"] = (cond,
+        f"zh_cjk={has_cjk(rulesZ)} en_cjk={has_cjk(rulesE)} machine_facts={_machine_facts(rulesZ)} zh_title={rulesZ.splitlines()[0][:40]!r}")
+
+    oE, _ = text_of(sE.call("aoci_overview"))
+    oZ, _ = text_of(sZ.call("aoci_overview"))
+    mE, bE = overview_single(oE)
+    mZ, bZ = overview_single(oZ)
+    same_keys = set(mE) == set(mZ)
+    machine_keys = ("entry_count", "section_count", "completed", "delivery_mode", "cognition_level",
+                    "cognition_level_state", "host_delivery_status", "layout_mode", "effective_scope")
+    same_machine = all(mE.get(k) == mZ.get(k) for k in machine_keys)
+    body_ok = (bE is not None and bZ is not None
+               and hashlib.sha256(bE.encode()).hexdigest() == mE.get("body_sha256")
+               and hashlib.sha256(bZ.encode()).hexdigest() == mZ.get("body_sha256"))
+    msgE, msgZ = mE.get("cognition_level_message"), mZ.get("cognition_level_message")
+    msg_ok = has_cjk(msgZ) and not has_cjk(msgE) and msgE != msgZ
+    _verdicts["locale.overview_meta_keys_identical_message_localized"] = (same_keys and same_machine and body_ok and msg_ok,
+        f"keys_same={same_keys} machine_same={same_machine} body_sha={body_ok} en={str(msgE)[:40]!r} zh={str(msgZ)[:30]!r}"
+        + ("" if same_keys else f" diff={sorted(set(mE) ^ set(mZ))}"))
+
+    def _attest(session, meta, body):
+        ords = meta["challenge_ordinals"] if isinstance(meta["challenge_ordinals"], list) \
+            else [int(x) for x in str(meta["challenge_ordinals"]).split(",")]
+        confirmation = {"version": "overview-delivery-receipt/v1", "body_sha256": meta["body_sha256"],
+                        "body_bytes": meta["body_utf8_bytes"], "end_marker_observed": True}
+        text, _err = text_of(session.call("aoci_overview", {"host_delivery_confirmation": confirmation,
+            "model_cognition_attestation": attestation_for(meta, meta, parse_entry_seq(body), ords)}))
+        return text, sorted(ln for ln in text.splitlines() if ln.split(":", 1)[0] in MACHINE_LINES)
+    aE, linesE = _attest(sE, mE, bE)
+    aZ, linesZ = _attest(sZ, mZ, bZ)
+    cond = (linesE == linesZ and "model_attestation: pass" in linesE and "model_full_cognition_reliable: true" in linesE
+            and has_cjk(aZ) and not has_cjk(aE))
+    _verdicts["locale.attestation_machine_lines_identical"] = (cond, f"en={linesE} zh={linesZ}"[:300])
+
+    hE, _ = text_of(sE.call("aoci_header"))
+    hZ, _ = text_of(sZ.call("aoci_header"))
+    qE, _ = text_of(sE.call("aoci_search", {"keyword": "fixture"}))
+    qZ, _ = text_of(sZ.call("aoci_search", {"keyword": "fixture"}))
+    gE, _ = text_of(sE.call("aoci_get_entries", {"paths": ["pkg/f001.go"]}))
+    gZ, _ = text_of(sZ.call("aoci_get_entries", {"paths": ["pkg/f001.go"]}))
+    entry1 = "f001.go[CG5T]: F:Provides fixture unit f001.go | R:- | A:- | S:-"
+    cond = (all("#AOCI-META-VOLUME: 1" in h for h in (hE, hZ)) and all("object_ref=code:pkg/f001.go" in q for q in (qE, qZ))
+            and all(entry1 in gtext for gtext in (gE, gZ)) and all("cognition: " in x.splitlines()[-1] for x in (qE, qZ, gE, gZ))
+            and has_cjk(hZ) and has_cjk(qZ) and has_cjk(gZ) and not (has_cjk(hE) or has_cjk(qE) or has_cjk(gE)))
+    _verdicts["locale.read_tools_localized_same_machine_tokens"] = (cond,
+        f"zh header={hZ.splitlines()[0][:30]!r} search={qZ.splitlines()[0][:30]!r} entries={gZ.splitlines()[0][:30]!r}")
+
+    mtE = _jload(text_of(sE.call("aoci_maintain"))[0])
+    mtZ = _jload(text_of(sZ.call("aoci_maintain"))[0])
+    cond = (mtE.get("aligned") is True and mtZ.get("aligned") is True and set(mtE) == set(mtZ)
+            and all(mtE.get(k) == mtZ.get(k) for k in ("version", "result", "status", "next_action")))
+    _verdicts["locale.maintain_machine_fields_identical"] = (cond,
+        f"aligned={mtE.get('aligned')},{mtZ.get('aligned')} keys_same={set(mtE) == set(mtZ)} "
+        f"result={mtE.get('result')},{mtZ.get('result')}")
+
+    rE, eE = text_of(sE.call("aoci_remove_entry", {"path": "code:pkg/f001.go"}))
+    rZ, eZ = text_of(sZ.call("aoci_remove_entry", {"path": "code:pkg/f001.go"}))
+    cond = (eE and eZ and all("[bad_args] remove_target_not_proven_orphan" in r for r in (rE, rZ))
+            and all("run_aoci_maintain_and_use_its_exact_orphan_candidate" in r for r in (rE, rZ))
+            and has_cjk(rZ) and not has_cjk(rE))
+    _verdicts["locale.error_code_identical_hint_localized"] = (cond, f"en={rE[:90]!r} zh={rZ[:60]!r}")
+except Exception as _err:  # noqa: BLE001 - every unreached locale check fails with this reason
+    _abort = f"locale lane aborted: {_err}"[:200]
+finally:
+    for _fx, _session in _twins.values():
+        _session.close()
+    shutil.rmtree(_work, ignore_errors=True)
+for _name in LOCALE_CHECKS:
+    _cond, _detail = _verdicts.get(_name, (False, _abort or "not reached"))
+    ok(_name, _cond, _detail)
 
 # ---------- host window: every non-Overview tool result fits an ordinary host window ----------
 # Claude Code spills tool results past ~25k tokens to a file; a real user's index
