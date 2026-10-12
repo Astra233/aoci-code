@@ -8,7 +8,10 @@ init→漂移→重对齐全程；repo-c 只到 aligned，不注入漂移，它�
 场景分两轨：
 
   确定性轨 (免模型、结果二值):
-    bringup      init 双语/agent 集成/doctor/scan/治理初态       (repo-a + repo-b)
+    bringup      init 双语/agent 集成/doctor/scan/治理初态; 子模块边界、
+                 exclude_root_dirs 三角色与 config set 归一、remove-entry
+                 预览与真删、机器文档(source manifest/capabilities)、
+                 zh-CN 孪生对照(人类语句无英文碎片、--json 机器字段同一) (repo-a + repo-b)
     incremental  模板条目建索引→改/增/删/换行符 四类增量维护      (repo-a)
     database     MySQL 证据全链: source→snapshot→accept→bootstrap→
                  模板表FRAS→v2 ALTER 漂移→重对齐 (含 inventory 离线语义) (repo-b)
@@ -395,6 +398,355 @@ def suite_bringup(rep, work):
     ok = rc == 0 and os.path.exists(ag) and any("一" <= ch <= "鿿" for ch in open(ag, encoding="utf-8").read())
     rep.rec(g, "repo-a.init-zh-CN", "PASS" if ok else "FAIL")
     suite_cognition_visibility(rep, work)
+    suite_bringup_submodule(rep, work)
+    suite_bringup_exclude_root_dirs(rep, work)
+    suite_bringup_remove_entry(rep, work)
+    suite_bringup_machine_documents(rep, work)
+    suite_bringup_locale_twins(rep, work)
+
+
+# ---------------------------------------------------------------- bringup lanes
+EXCLUDE_ROOT_DIRS = ["backup", "backups", "build", "cache", "coverage", "dist", "target", "tmp",
+                     "uploads", "artifacts", "vendor"]
+NINE_TOOLS = sorted(["aoci_rules", "aoci_overview", "aoci_get_entries", "aoci_search", "aoci_update_entry",
+                     "aoci_report", "aoci_remove_entry", "aoci_header", "aoci_maintain"])
+HEX64 = re.compile(r"^[0-9a-f]{64}$")
+
+
+def human(repo, *args):
+    """Run the CLI as an operator does, without --json: (rc, stdout + stderr)."""
+    proc = subprocess.run([BIN, "--repo", repo, *args], capture_output=True, text=True, timeout=120)
+    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+
+def init_only(fx, locale="en-US"):
+    """init plus the fixture's curation exclusions; scan is left to a caller that wants its report."""
+    rc, _, out, errs = cli(fx, "init", "--locale", locale)
+    if rc != 0:
+        raise RuntimeError(f"init failed: {out[:200]} {errs[:200]}")
+    exclude = CURATION_EXCLUDE.get(repo_key_of(fx))
+    if exclude:
+        rc, _, out, errs = cli(fx, "config", "set", "curation_exclude", exclude)
+        if rc != 0:
+            raise RuntimeError(f"config set curation_exclude failed: {out[:200]} {errs[:200]}")
+
+
+def volume_text(fx):
+    with open(os.path.join(fx, "aoci.code.txt"), encoding="utf-8") as fh:
+        return fh.read()
+
+
+def suite_bringup_submodule(rep, work):
+    """A gitlink is a boundary, not a file (#107).
+
+    repo-b is added to repo-a as a git submodule. The superproject tracks only
+    the submodule's commit, so scan reports the gitlink once as a git_submodule,
+    scope explain on a path beneath it names the boundary with a reason that
+    starts git_submodule: and the hint that the submodule is its own repository,
+    and the superproject authors to aligned without an Entry for anything under
+    the submodule: its code is indexed only by initializing that repository.
+    """
+    g = "bringup"
+    source = deploy("b", work, "submodule-source")
+    fx = deploy("a", work, "submodule")
+    # git 2.38+ refuses the file transport for submodules unless allowed explicitly.
+    sh(fx, "git", "-c", "protocol.file.allow=always", "submodule", "add", "--quiet", source, "vendor/shopfloor")
+    sh(fx, "git", "commit", "-q", "-m", "add shopfloor submodule")
+    init_only(fx)
+    rc, scan, out, errs = cli(fx, "scan")
+    inventory = scan.get("safe_inventory") or {}
+    ok = rc == 0 and scan.get("git_submodules") == 1 and inventory.get("unsafe_filesystem_excluded") == 1
+    rep.rec(g, "repo-a.submodule.scan-counts-the-gitlink-once", "PASS" if ok else "FAIL",
+            f"rc={rc} git_submodules={scan.get('git_submodules')} unsafe_excluded={inventory.get('unsafe_filesystem_excluded')}")
+    inside = "vendor/shopfloor/app/main.py"
+    rc, item, _, _ = cli(fx, "scope", "explain", inside, expect_ok=False)
+    hrc, text = human(fx, "scope", "explain", inside)
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    ok = (rc == 0 and item.get("role") == "exclude" and item.get("rule_source") == "safety"
+          and str(item.get("reason", "")).startswith("git_submodule:") and item.get("reads_content") is False
+          and item.get("enters_whole_index") is False and hrc == 0 and "git_submodule:" in text
+          and len(lines) >= 2 and "submodule" in lines[-1])
+    rep.rec(g, "repo-a.submodule.explain-names-the-boundary", "PASS" if ok else "FAIL",
+            f"rc={rc} role={item.get('role')} reason={item.get('reason')} | {(lines[-1] if lines else '')[:100]!r}")
+    ok_all, rounds, detail = author_all(fx)
+    al, v = aligned(fx)
+    volume = volume_text(fx)
+    rc, status, _, _ = cli(fx, "scope", "status", expect_ok=False)
+    excluded = {e.get("path"): e.get("reason") for e in ((status.get("evaluation") or {}).get("exclude") or [])}
+    ok = (ok_all and al and "vendor/shopfloor" not in volume
+          and str(excluded.get("vendor/shopfloor", "")).startswith("git_submodule:"))
+    rep.rec(g, "repo-a.submodule.superproject-aligns-without-submodule-entries", "PASS" if ok else "FAIL",
+            f"outcome={detail} rounds={rounds} aligned={al} volume_mentions_submodule={'vendor/shopfloor' in volume} "
+            f"status_reason={excluded.get('vendor/shopfloor')}")
+
+
+def suite_bringup_exclude_root_dirs(rep, work):
+    """exclude_root_dirs is a root list, and config set keeps it one (#104, #105).
+
+    A fresh init persists the eleven names. A tracked src/build/tool.go is
+    source while a tracked build/output.txt at the root is excluded with a
+    reason that names the list, the name, and the configured category. config
+    set drops a trailing separator and a duplicate, and refuses a path, which
+    could never match one component, instead of saving a dead entry.
+    """
+    g = "bringup"
+    fx = deploy("a", work, "rootdirs")
+    for rel, body in (("src/build/tool.go", "package build\n\n// a build helper that is project source\nfunc Tool() int { return 1 }\n"),
+                      ("build/output.txt", "compiled artifact\n")):
+        path = os.path.join(fx, *rel.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(body)
+    sh(fx, "git", "add", "-A")
+    sh(fx, "git", "commit", "-q", "-m", "root and nested build directories")
+    init_only(fx)
+    rc, value, _, _ = cli(fx, "config", "get", "exclude_root_dirs", expect_ok=False)
+    rep.rec(g, "repo-a.exclude-root-dirs.init-persists-the-root-list",
+            "PASS" if rc == 0 and value == EXCLUDE_ROOT_DIRS else "FAIL", f"rc={rc} value={value}")
+    rc, _, out, errs = cli(fx, "scan")
+    roles = baseline_roles(fx, ["src/build/tool.go", "build/output.txt"])
+    rc_n, nested, _, _ = cli(fx, "scope", "explain", "src/build/tool.go", expect_ok=False)
+    rc_r, root_item, _, _ = cli(fx, "scope", "explain", "build/output.txt", expect_ok=False)
+    ok = (rc == 0 and roles == {"src/build/tool.go": "index", "build/output.txt": None}
+          and nested.get("role") == "index" and root_item.get("role") == "exclude"
+          and root_item.get("reason") == "exclude_root_dirs:build:configured" and root_item.get("reads_content") is False)
+    rep.rec(g, "repo-a.exclude-root-dirs.nested-build-is-source-root-build-is-excluded", "PASS" if ok else "FAIL",
+            f"roles={roles} nested={nested.get('role')}/{nested.get('reason')} root={root_item.get('role')}/{root_item.get('reason')}")
+    rc, result, out, errs = cli(fx, "config", "set", "exclude_root_dirs", "build/, cache, build", expect_ok=False)
+    rc2, stored, _, _ = cli(fx, "config", "get", "exclude_root_dirs", expect_ok=False)
+    ok = rc == 0 and result.get("value") == ["build", "cache"] and stored == ["build", "cache"]
+    rep.rec(g, "repo-a.exclude-root-dirs.config-set-normalizes-the-list", "PASS" if ok else "FAIL",
+            f"rc={rc} value={result.get('value')} stored={stored}")
+    rc, result, out, errs = cli(fx, "config", "set", "exclude_root_dirs", "app/build", expect_ok=False)
+    rc2, stored, _, _ = cli(fx, "config", "get", "exclude_root_dirs", expect_ok=False)
+    blob = (result.get("message") or "") + out + errs
+    ok = rc != 0 and result.get("ok") is False and "app/build" in blob and stored == ["build", "cache"]
+    rep.rec(g, "repo-a.exclude-root-dirs.config-set-refuses-a-path", "PASS" if ok else "FAIL",
+            f"rc={rc} stored={stored} | {' '.join(blob.split())[:120]}")
+
+
+def suite_bringup_remove_entry(rep, work):
+    """The maintainer's remove-entry walks the same pipeline as aoci_remove_entry.
+
+    After the fixture is aligned one source is deleted and committed, so verify
+    reports exactly that orphan. --preview with the Volumes object reference
+    shows the Entry line it would remove and writes nothing; the real removal
+    takes the Entry out of the Code Volume and leaves verify aligned. The help
+    says a live file's Entry may be removed as well; what this binary does with
+    that request is recorded as a characterization, not judged.
+    """
+    g = "bringup"
+    fx = deploy("a", work, "remove-entry")
+    init_and_scan(fx)
+    ok_all, rounds, detail = author_all(fx)
+    if not ok_all:
+        rep.rec(g, "repo-a.remove-entry.preview-is-zero-write", "FAIL", f"fixture authoring failed: {detail}")
+        rep.rec(g, "repo-a.remove-entry.orphan-removed-and-realigned", "FAIL", "fixture authoring failed")
+        rep.rec(g, "repo-a.remove-entry.live-file-preview", "CHAR", "not reached")
+        return
+    target = "src/utils/time.ts"
+    os.remove(os.path.join(fx, "src", "utils", "time.ts"))
+    sh(fx, "git", "add", "-A")
+    sh(fx, "git", "commit", "-q", "-m", "drop time.ts")
+    _, v0 = aligned(fx)
+    orphans = ((v0.get("governance") or {}).get("code_drift") or {}).get("orphan") or []
+    before = volume_text(fx)
+    rc, text = human(fx, "remove-entry", "--path", "code:" + target, "--preview")
+    after_preview = volume_text(fx)
+    _, v1 = aligned(fx)
+    still = ((v1.get("governance") or {}).get("code_drift") or {}).get("orphan") or []
+    ok = (orphans == [target] and rc == 0 and "code:" + target in text and "time.ts[" in text
+          and after_preview == before and still == [target])
+    rep.rec(g, "repo-a.remove-entry.preview-is-zero-write", "PASS" if ok else "FAIL",
+            f"orphans={orphans} rc={rc} volume_unchanged={after_preview == before} still_orphan={still} | "
+            f"{' '.join(text.split())[:100]}")
+    rc, text = human(fx, "remove-entry", "--path", "code:" + target)
+    after = volume_text(fx)
+    al, v2 = aligned(fx)
+    gone = ((v2.get("governance") or {}).get("code_drift") or {}).get("orphan") or []
+    ok = rc == 0 and after != before and "time.ts[" not in after and al and gone == []
+    rep.rec(g, "repo-a.remove-entry.orphan-removed-and-realigned", "PASS" if ok else "FAIL",
+            f"rc={rc} volume_changed={after != before} entry_gone={'time.ts[' not in after} aligned={al} orphans={gone} | "
+            f"{' '.join(text.split())[:100]}")
+    live = "src/utils/id.ts"
+    rc, text = human(fx, "remove-entry", "--path", "code:" + live, "--preview")
+    rep.rec(g, "repo-a.remove-entry.live-file-preview", "CHAR",
+            f"rc={rc} volume_unchanged={volume_text(fx) == after} | {' '.join(text.split())[:140]}")
+
+
+def suite_bringup_machine_documents(rep, work):
+    """source manifest and capabilities are machine documents: a fixed shape, the same bytes twice."""
+    g = "bringup"
+    fx = deploy("a", work, "machine-docs")
+    init_and_scan(fx)
+    stamp = "2026-01-01T00:00:00Z"
+    rc1, m1, out1, errs1 = cli(fx, "source", "manifest", "--generated-at", stamp, expect_ok=False)
+    rc2, m2, out2, errs2 = cli(fx, "source", "manifest", "--generated-at", stamp, expect_ok=False)
+    required = {"version", "ordered_paths", "files", "inclusion_exclusion_identity", "safe_inventory_rules_identity",
+                "curation_identity", "git_head", "line_ending_policy", "aggregate_algorithm", "aggregate_sha256",
+                "safe_inventory", "generated_at", "network_accessed"}
+    files = m1.get("files") or []
+    paths = m1.get("ordered_paths") or []
+    ok = (rc1 == 0 and rc2 == 0 and out1 == out2 and required <= set(m1)
+          and m1.get("version") == "business-source-manifest/v1" and m1.get("generated_at") == stamp
+          and m1.get("network_accessed") is False and bool(HEX64.match(str(m1.get("aggregate_sha256"))))
+          and bool(files) and [f.get("path") for f in files] == paths
+          and all(HEX64.match(str(f.get("sha256"))) and isinstance(f.get("size_bytes"), int) for f in files)
+          and "src/server.ts" in paths and "aoci.txt" not in paths)
+    rep.rec(g, "repo-a.source-manifest-json-shape-and-deterministic", "PASS" if ok else "FAIL",
+            f"rc={rc1},{rc2} identical={out1 == out2} missing={sorted(required - set(m1))} files={len(files)}"
+            + (f" | {(errs1 or out1)[:100]}" if rc1 else ""))
+    rc1, c1, out1, errs1 = cli(fx, "capabilities", expect_ok=False)
+    rc2, c2, out2, _ = cli(fx, "capabilities", expect_ok=False)
+    required = {"version", "product", "binary", "aoci_version", "mcp_protocol", "mcp_tools", "mcp_tool_count",
+                "mcp_tool_name_identity", "cli_lifecycle_capabilities", "input_schema_versions", "current_layout",
+                "network_accessed"}
+    ok = (rc1 == 0 and rc2 == 0 and out1 == out2 and required <= set(c1)
+          and c1.get("version") == "aoci-capability-manifest/v1" and sorted(c1.get("mcp_tools") or []) == NINE_TOOLS
+          and c1.get("mcp_tool_count") == 9 and "business-source-manifest/v1" in (c1.get("input_schema_versions") or [])
+          and c1.get("network_accessed") is False)
+    rep.rec(g, "repo-a.capabilities-json-shape-and-deterministic", "PASS" if ok else "FAIL",
+            f"rc={rc1},{rc2} identical={out1 == out2} missing={sorted(required - set(c1))} tools={c1.get('mcp_tool_count')}"
+            + (f" | {(errs1 or out1)[:100]}" if rc1 else ""))
+
+
+# The zh-CN lane compares a zh-CN run against an en-US run of the same commands
+# on the same fixture. The en-US run is the en-US catalog as this binary renders
+# it, so the suite needs no copy of the catalog: an English sentence fragment is
+# a run of three or more words from the en-US human output that is not part of
+# a command line (`aoci ...`, which both locales quote verbatim, example
+# arguments included), not a product name without a lowercase word ("Qoder CLI
+# MCP"), and not machine data the --json output carries verbatim (a rule reason
+# such as "default production role"). Machine fields are compared after
+# normalizing what legitimately differs: the fixture root, digests and
+# timestamps, token and byte estimates of localized text, timings, and the
+# fields that carry human sentences.
+EN_RUN = re.compile(r"(?<![\w/.\-])[A-Za-z][A-Za-z'\-]*(?: [A-Za-z][A-Za-z'\-]*){2,}(?![\w/.\-])")
+COMMAND_SPAN = re.compile(r"\baoci\b(?: +[^\s;。]+)*")
+LOCALE_VOLATILE_KEYS = {"whole_index_tokens", "structure_tokens", "size_bytes", "deterministic_ms", "duration_ms",
+                        "message", "instructions", "authoring_meta", "hint", "cognition_level_message", "next_step",
+                        "detail", "summary"}
+HEX_RUN = re.compile(r"\b[0-9a-f]{40,64}\b")
+TIMESTAMP_RUN = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z|\d{8}T\d{6}Z")
+LOCALE_HUMAN_COMMANDS = [("scan", "--dry-run"), ("doctor",), ("scope", "status"), ("scope", "explain", "src/utils/time.ts"),
+                         ("scope", "rule", "list"), ("verify",), ("check",), ("status",),
+                         ("source", "manifest", "--generated-at", "2026-01-01T00:00:00Z")]
+LOCALE_JSON_COMMANDS = [("scope", "status"), ("scope", "explain", "src/utils/time.ts"), ("scope", "rule", "list"),
+                        ("config", "get", "exclude_root_dirs"), ("verify",), ("check",), ("status",),
+                        ("index", "agent", "guide", "--agent", "claude"), ("capabilities",),
+                        ("source", "manifest", "--generated-at", "2026-01-01T00:00:00Z")]
+LOCALE_POST_COMMANDS = [("verify",), ("check",), ("status",)]
+
+
+def has_cjk(text):
+    return any("一" <= ch <= "鿿" for ch in str(text))
+
+
+def machine_view(obj, root):
+    if isinstance(obj, dict):
+        return {k: machine_view(v, root) for k, v in obj.items() if k not in LOCALE_VOLATILE_KEYS}
+    if isinstance(obj, list):
+        return [machine_view(v, root) for v in obj]
+    if isinstance(obj, str):
+        return TIMESTAMP_RUN.sub("<ts>", HEX_RUN.sub("<hex>", obj.replace(root, "<root>")))
+    return obj
+
+
+def json_diff(a, b, path="$"):
+    out = []
+    if isinstance(a, dict) and isinstance(b, dict):
+        for k in sorted(set(a) | set(b)):
+            if k not in a or k not in b:
+                out.append(f"{path}.{k}: only in {'en-US' if k in a else 'zh-CN'}")
+            else:
+                out += json_diff(a[k], b[k], f"{path}.{k}")
+    elif isinstance(a, list) and isinstance(b, list):
+        if len(a) != len(b):
+            out.append(f"{path}: {len(a)} vs {len(b)} items")
+        for i, (x, y) in enumerate(zip(a, b)):
+            out += json_diff(x, y, f"{path}[{i}]")
+    elif a != b:
+        out.append(f"{path}: {str(a)[:60]!r} vs {str(b)[:60]!r}")
+    return out
+
+
+def without_command_spans(text):
+    return COMMAND_SPAN.sub(" ", text)
+
+
+def en_sentence_fragments(text, machine_blob):
+    out = set()
+    for fragment in EN_RUN.findall(without_command_spans(text)):
+        if not any(word[:1].islower() for word in fragment.split(" ")):
+            continue
+        if fragment in machine_blob:
+            continue
+        out.add(fragment)
+    return out
+
+
+def suite_bringup_locale_twins(rep, work):
+    """repo-a under zh-CN against repo-a under en-US: the same commands, twice.
+
+    Every human line an operator sees must be in the locale they chose, with no
+    sentence fragment carried over from the en-US rendering, while every --json
+    document must be the same machine document in both runs.
+    """
+    g = "bringup"
+    runs = {}
+    for locale in ("en-US", "zh-CN"):
+        fx = deploy("a", work, f"locale-{locale}")
+        human_out, docs, failures = {}, {}, []
+        rc, text = human(fx, "init", "--locale", locale)
+        human_out[("init",)] = text
+        if rc != 0:
+            failures.append(f"init rc={rc}")
+        rc, _, out, errs = cli(fx, "config", "set", "curation_exclude", CURATION_EXCLUDE["a"])
+        if rc != 0:
+            failures.append(f"config set rc={rc}")
+        for command in LOCALE_HUMAN_COMMANDS:
+            if command == ("scan", "--dry-run"):
+                rc, text = human(fx, *command)
+                human_out[command] = text
+                rc, scan, out, errs = cli(fx, "scan")
+                docs[("scan",)] = scan if rc == 0 else {"_rc": rc, "_out": out + errs}
+        for command in LOCALE_JSON_COMMANDS:
+            rc, body, out, errs = cli(fx, *command, expect_ok=False)
+            docs[command] = body if body else {"_rc": rc, "_out": out + errs}
+        for command in LOCALE_HUMAN_COMMANDS:
+            if command != ("scan", "--dry-run"):
+                rc, text = human(fx, *command)
+                human_out[command] = text
+        ok_all, rounds, detail = author_all(fx)
+        for command in LOCALE_POST_COMMANDS:
+            rc, body, out, errs = cli(fx, *command, expect_ok=False)
+            docs[("post",) + command] = body if body else {"_rc": rc, "_out": out + errs}
+            rc, text = human(fx, *command)
+            human_out[("post",) + command] = text
+        al, _ = aligned(fx)
+        runs[locale] = {"fx": fx, "human": human_out, "docs": docs, "aligned": ok_all and al, "rounds": rounds,
+                        "detail": detail, "failures": failures}
+    en, zh = runs["en-US"], runs["zh-CN"]
+    machine_blob = json.dumps([machine_view(doc, en["fx"]) for doc in en["docs"].values()], ensure_ascii=False)
+    fragments = set()
+    for text in en["human"].values():
+        fragments |= en_sentence_fragments(text, machine_blob)
+    zh_blob = without_command_spans("\n".join(zh["human"].values()))
+    leaks = sorted(fragment for fragment in fragments if fragment in zh_blob)
+    without_chinese = [" ".join(command) for command, text in zh["human"].items() if not has_cjk(text)]
+    ok = not leaks and not without_chinese and not zh["failures"] and not en["failures"]
+    rep.rec(g, "repo-a.zh-CN.human-output-free-of-en-US-sentences", "PASS" if ok else "FAIL",
+            f"en_fragments={len(fragments)} leaks={leaks[:6]} commands_without_chinese={without_chinese} "
+            f"failures={zh['failures'] + en['failures']}")
+    diffs = []
+    for command in en["docs"]:
+        diffs += [f"{' '.join(command)}: {line}" for line in
+                  json_diff(machine_view(en["docs"][command], en["fx"]), machine_view(zh["docs"].get(command), zh["fx"]))]
+    rep.rec(g, "repo-a.zh-CN.json-machine-fields-identical-to-en-US", "PASS" if not diffs else "FAIL",
+            f"documents={len(en['docs'])} differences={len(diffs)} {diffs[:5]}")
+    ok = en["aligned"] and zh["aligned"] and en["rounds"] == zh["rounds"]
+    rep.rec(g, "repo-a.zh-CN.aligned-in-the-same-rounds-as-en-US", "PASS" if ok else "FAIL",
+            f"en aligned={en['aligned']} rounds={en['rounds']} | zh aligned={zh['aligned']} rounds={zh['rounds']} {zh['detail'][:60]}")
 
 
 def suite_cognition_visibility(rep, work):
