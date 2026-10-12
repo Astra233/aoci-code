@@ -7,7 +7,7 @@ with the repository clone (binary Release archives do not include `scripts/`).
 
 | Suite | Proves | Needs | Typical time |
 | --- | --- | --- | --- |
-| `mcp_conformance.py` | The MCP wire surface honors its contract: handshake, the nine-tool registry, input schemas, response shapes, error behavior, clean handling of malformed input. Read-only. | python3, git, a built binary | seconds |
+| `mcp_conformance.py` | The MCP wire surface honors its contract: handshake, the nine-tool registry, input schemas, response shapes, error behavior, clean handling of malformed input, and a locale twin lane that repeats the locale-dependent checks on two throwaway fixtures initialized with `--locale en-US` and `--locale zh-CN` (human sentences follow the locale; keys, machine fields, error codes, and digests do not). Read-only on the host repository. | python3, git, a built binary | seconds |
 | `mcp_scenarios.py` | Safety under hostile handling: cursor replay/tampering, write-lifecycle rejections, crash injection during Apply, racing writers, and the pre-write hook (`aoci hook pretool`) under the Claude Code stdin-JSON and Codex flag shapes: fail-open on bad input, Entry injection, and the strict stale block with each agent's exit code. Disposable fixture repositories; the host repository is only read. | same as above | minutes |
 | `mcp_lifecycle.py` | Complete lifecycles on three frozen realistic projects: `repo-a` (a TypeScript service) and `repo-b` (a Python + MySQL service) run from `init` through incremental maintenance, database Evidence, drift, re-alignment, and the governance walks (curation probes, post-scan exclusion, and a pending policy edit over a changed source), while `repo-c` (a 453-file layered service) additionally exercises multi-batch authoring at the real machine batch limit, including a relation cycle that spans every batch. An optional model track drives a real AI agent through the small repositories. | above + Docker for the `database` suite; OpenCode + a model subscription for the model track | minutes; model track depends on the model |
 | `mcp_upgrade.py` | The upgrade axis: a repository built and authored by a *previously released* binary stays governable by the binary under test — no identity moves, no Scope Change is demanded, no formal asset is rewritten. Every release in the CHANGELOG is downloaded, checksum-verified, and probed in nine repository shapes. | above + network access on the first run (binaries are cached) | minutes |
@@ -20,7 +20,8 @@ Build or obtain a binary first, from the repository root:
 make build          # or: export AOCI_BIN=/path/to/downloaded/aoci
 ```
 
-Protocol conformance (46 checks, read-only):
+Protocol conformance (53 checks, read-only): the host repository is only read;
+the locale twin lane mints its two fixtures in a temp dir and removes them.
 
 ```bash
 python3 scripts/blackbox/mcp_conformance.py
