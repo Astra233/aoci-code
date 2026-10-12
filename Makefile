@@ -37,7 +37,7 @@ OPENGAUSS_PATCH_GO_FILES := \
 	third_party/openGauss-connector-go-pq/ssl.go \
 	third_party/openGauss-connector-go-pq/aoci_security_patch_test.go
 
-.PHONY: build test fast fast-test fast-builds full verify release-check race vuln fuzz-smoke database-integration clean-room-smoke example-test vet fmt fmt-check safety check-deps toolchain-preflight opengauss-connector licenses textassets-check update-goldens staticcheck coverage-floors ladder check cross clean
+.PHONY: build test fast fast-test fast-builds full verify release-check race vuln fuzz-smoke database-integration clean-room-smoke example-test vet fmt fmt-check safety check-deps toolchain-preflight opengauss-connector licenses textassets-check update-goldens staticcheck coverage-floors ladder check cross clean axis-self
 
 # 静态编译单二进制,使用Go目标平台的原生可执行文件后缀。
 build:
@@ -225,9 +225,20 @@ clean-room-smoke:
 full: toolchain-preflight build $(FULL_GATES)
 	@echo "★ make full passed (Tier 1 Full Confidence) ★"
 
+# Pre-tag self-axis: BUILD_BIN plays both roles of every upgrade-axis shape under
+# the newest CHANGELOG version's label, with no download. The moment a candidate
+# is tagged it becomes an "old version" for that suite, and a shape premise written
+# for the releases before it goes stale with no run in between (rc20's root list
+# turned legacydirs red on the first nightly after its tag). This target is that
+# missing run; it does not replace the released matrix the nightly downloads.
+axis-self:
+	@test -x "$(BUILD_BIN)" || { echo "axis-self: $(BUILD_BIN) is not an executable; run make build or pass BUILD_BIN=/path/to/aoci"; exit 1; }
+	AOCI_REPO="$(CURDIR)" AOCI_BIN="$(abspath $(BUILD_BIN))" python3 scripts/blackbox/mcp_upgrade.py --self
+
 # One deterministic closure command. It reuses full's host-native binary and runs every
-# black-box suite without entering the lifecycle model track. Keep running the
-# remaining suites after one fails so one invocation reports the whole result.
+# black-box suite without entering the lifecycle model track, then the self-axis.
+# Keep running the remaining suites after one fails so one invocation reports the
+# whole result.
 verify:
 	@status=0; \
 	$(MAKE) --no-print-directory toolchain-preflight build || exit $$?; \
@@ -235,6 +246,7 @@ verify:
 	AOCI_REPO="$(CURDIR)" AOCI_BIN="$(abspath $(BUILD_BIN))" python3 scripts/blackbox/mcp_conformance.py || status=1; \
 	AOCI_REPO="$(CURDIR)" AOCI_BIN="$(abspath $(BUILD_BIN))" python3 scripts/blackbox/mcp_scenarios.py || status=1; \
 	AOCI_REPO="$(CURDIR)" AOCI_BIN="$(abspath $(BUILD_BIN))" python3 scripts/blackbox/mcp_lifecycle.py || status=1; \
+	$(MAKE) --no-print-directory axis-self BUILD_BIN="$(BUILD_BIN)" || status=1; \
 	python3 scripts/blackbox/ladder.py --check; \
 	if [ $$status -eq 0 ]; then echo "★ make verify passed (all deterministic gates) ★"; fi; \
 	exit $$status

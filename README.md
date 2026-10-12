@@ -974,13 +974,15 @@ and CLI only:
   optional model track puts a real AI agent — any model your OpenCode
   installation exposes — through the two small repositories and scores the end
   state from public surfaces.
-- **Upgrade axis** — 72 checks per released version, over nine repository
+- **Upgrade axis** — 80 checks per released version, over ten repository
   shapes: every published release builds and authors a repository with its own
   binary, then the binary under test must govern it without moving an identity,
   demanding a Scope Change, or rewriting a formal asset, and what it then
-  authors must keep a checkout at another path aligned. The other three suites
-  mint every fixture with the binary under test, so a preimage that changed
-  between versions is invisible to them by construction.
+  authors must keep a checkout at another path aligned; in the tenth shape the
+  roles turn around, and every published release must read a repository the
+  binary under test wrote without crashing or rewriting it. The other three
+  suites mint every fixture with the binary under test, so a preimage that
+  changed between versions is invisible to them by construction.
 
 They need only Python 3 and git on top of a built binary (Docker for the MySQL
 suite; OpenCode plus your own model subscription for the model track), so a

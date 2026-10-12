@@ -2,13 +2,15 @@
 """AOCI upgrade-axis harness — a repository written by a previously released
 binary must stay governable by the binary under test.
 
-升级轴回归（每个已发布版本 72 项检查）：用**旧的已发布二进制**建仓、扫描、授权到
+升级轴回归（每个已发布版本 80 项检查）：用**旧的已发布二进制**建仓、扫描、授权到
 aligned,再让被测二进制跑上去,断言身份不变、不索要 Scope Change、不改写正式资产。
-九种仓库形状各跑一遍: 两种 config 形状解析的是不同的预算 preimage, 两种路径形状
+十种仓库形状各跑一遍: 两种 config 形状解析的是不同的预算 preimage, 两种路径形状
 (根路径含空格 / 某个路径段以 "(" 开头)承载的是旧读法截断出来的两种段根, 一种
 嵌套 worktree 形状(在 <repo>/.worktrees/wt 里建的索引合回主检出后从主检出读, #77),
 一种在途批次形状, 一种旧版目录排除形状, 两种 git 忽略目录形状(被用户规则拉进索引的 gen/api.go; 几百个
-文件的 node_modules 加一个被 observe 规则观察的 out/ 文件, #97)。
+文件的 node_modules 加一个被 observe 规则观察的 out/ 文件, #97), 以及一种降级形状
+(被测二进制建仓授权, 旧的已发布二进制去读: 只读面有界、要么对齐要么以具名机器状态拒绝、
+不改写任何正式字节)。
 
 Why this suite exists at all: the other three suites build every fixture with the
 binary under test, so a preimage that changed between versions is invisible to
@@ -65,19 +67,42 @@ composite identity, and the second must stay observed.
 before the released binary initializes the repository. Its persisted
 any-depth exclusions must remain active after the upgrade (#104).
 
-The published number is 72 checks *per released version* (8 per repository
+`downgrade` turns the axis around: the binary under test initializes and
+authors the fixture, and the released binary is the one that reads it, over
+the read-only CLI surface and an MCP Overview plus one Maintain. Every other
+shape proves that a new binary governs an old repository; this one proves what
+an old binary does with a new one, which is documented (docs/upgrading.md: a
+repository initialized by rc20 needs rc20 on every machine, an older binary
+answers scope_change_required) but was asserted nowhere. The released binary
+must read the stamped identities back, answer every command with an ordinary
+exit code and valid JSON, either align or refuse with a named machine state,
+never crash, and rewrite no formal byte; the binary under test must then still
+be aligned and able to grow. See DOWNGRADE_FLOOR for which side of the line
+each release is expected on.
+
+The published number is 80 checks *per released version* (8 per repository
 shape), not a total: a total would change on every release and stop being a
 property of this suite.
 
+`--self` is the pre-tag step: the binary under test plays both roles of every
+shape, labelled with the newest CHANGELOG version, with no download. A shape
+premise that goes stale the moment the candidate is released (rc20's root list
+turned `legacydirs` red on the first nightly after its tag, because nothing had
+run the candidate as a released version before it) fails here first. `--recent
+N` runs only the newest N releases, the layer a push to main gets in CI; the
+nightly and a manual dispatch run the whole list.
+
 Usage:  python3 scripts/blackbox/mcp_upgrade.py
         python3 scripts/blackbox/mcp_upgrade.py --versions v0.1.0-rc5,v0.1.0-rc7
+        python3 scripts/blackbox/mcp_upgrade.py --recent 3
+        python3 scripts/blackbox/mcp_upgrade.py --self
         python3 scripts/blackbox/mcp_upgrade.py --allow-offline
 Env:    AOCI_REPO / AOCI_BIN override the repository and binary under test;
         AOCI_UPGRADE_CACHE overrides the downloaded-binary cache directory;
         AOCI_UPGRADE_SLUG overrides the owner/repo the releases are fetched from.
 Requires: python3, git, network access to the release assets (cached after the
-first run). Unlike conformance and scenarios this suite is not a portable
-compatibility check: it asserts *this* project's own upgrade path.
+first run; `--self` needs none). Unlike conformance and scenarios this suite is
+not a portable compatibility check: it asserts *this* project's own upgrade path.
 """
 import argparse, hashlib, json, os, platform, re, shutil, subprocess, sys, tarfile
 import tempfile, time, urllib.error, urllib.request, zipfile
@@ -115,8 +140,11 @@ CHECKS_PER_SHAPE = 8
 # "ignoredpull" and "ignoredtree" put git-ignored directories under the released
 # index (#97); IGNORED_SHAPES below holds what each plants and which rule the
 # released binary adds before its scan.
+# "downgrade" is the "init" shape with the roles reversed: the binary under test
+# initializes and authors it, the released binary reads it; DOWNGRADE_FLOOR
+# below says what each release is expected to answer.
 SHAPES = ("init", "nobudget", "spacedroot", "cutsegment", "worktree", "inflight",
-          "legacydirs", "ignoredpull", "ignoredtree")
+          "legacydirs", "ignoredpull", "ignoredtree", "downgrade")
 CHECKS_PER_VERSION = CHECKS_PER_SHAPE * len(SHAPES)
 CHECK_NAMES = ("post_scan_identity_stable", "aligned_repo_stays_aligned",
                "composite_identity_unchanged", "no_scope_change_demanded",
@@ -269,6 +297,82 @@ def legacy_artifact_roles(version):
     return {path: "exclude" for path in LEGACY_ARTIFACT_FILES}
 
 
+# The downgrade shape runs for every release; the floor says which answer each
+# one owes. It is the newest release that introduced a persisted preimage the
+# binary under test still writes, today exclude_root_dirs (#104, the fact
+# ROOT_LIST_FLOOR records for the other direction). A release from the floor on
+# shares every preimage, so it must read the fixture aligned with the same
+# desired and active policy identity and its Maintain must reach `aligned`. A
+# release before it computes the desired identity from fewer fields, so it must
+# answer scope_change_required, exactly what docs/upgrading.md promises, and its
+# Maintain must stop on that named state. Both sides must read the stamped
+# active identity, budget, layout and composite identity back unchanged.
+# Evidence, 2026-10-13, every cached release v0.1.0-rc1..rc20 against a
+# post-rc20 build: rc20 reads the fixture aligned; rc1..rc19 answer
+# scope_change_required on verify, check and Maintain with exit 1, valid JSON
+# and empty stderr, rc1..rc5 adding a business_source_manifest_invalid finding
+# for a manifest newer than they are; no release rewrote a guarded byte or left
+# a file under .aoci, and the binary under test grew to aligned afterwards. A
+# candidate that adds a persisted preimage moves this floor, and its release
+# notes must say which binary every machine then needs; a candidate whose
+# repository an older reader cannot handle at all turns the shape red before
+# the tag, on the first `--recent` run after the change.
+DOWNGRADE_FLOOR = ROOT_LIST_FLOOR
+
+# The read-only surface the released binary runs over the fixture, in order:
+# the planted path is the backup module, whose role every release decides by
+# its own policy. The surface is run again below only through MCP (Overview and
+# one Maintain), never through a writer: `config set` from an older release is
+# documented to drop exclude_root_dirs, which the probe confirmed for every
+# release before the floor, and a shape that let it write could not then ask
+# the binary under test to re-verify aligned.
+DOWNGRADE_PROBE_PATH = next(iter(BACKUP_MODULE)).replace(os.sep, "/")
+DOWNGRADE_SURFACE = (("verify", "--json"), ("check", "--json"), ("scope", "status", "--json"),
+                     ("--json", "scope", "explain", DOWNGRADE_PROBE_PATH), ("status",))
+
+# A refusal a host can act on. Besides the Scope Change the floor expects, a
+# cognition_* state (the Overview and Maintain refusal family) or a layout the
+# release does not support are named states; anything else is a crash or an
+# unexplained stop and fails the shape.
+NAMED_REFUSAL = re.compile(r"^(scope_change_required|cognition_[a-z0-9_]+|[a-z0-9_]+_unsupported|volume_read_only)$")
+
+
+def machine_codes(doc):
+    """Every machine state a JSON response names: each string under a `code`
+    key, at any depth, which is where findings and tool refusals carry it."""
+    found = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == "code" and isinstance(value, str) and value:
+                    found.add(value)
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(doc)
+    return found
+
+
+def unbounded_answer(proc, wants_json):
+    """Why a released binary's answer is not an ordinary one, or '' when it is:
+    an ordinary exit code is 0, 1 (governance blocked) or 2 (usage), a Go panic
+    also exits 2 but says so on stderr, and `--json` must put JSON on stdout."""
+    if proc.returncode < 0 or proc.returncode > 2:
+        return f"exit {proc.returncode}"
+    if "panic:" in proc.stderr or "goroutine " in proc.stderr:
+        return proc.stderr.strip().splitlines()[0][:120]
+    if wants_json:
+        try:
+            json.loads(proc.stdout)
+        except ValueError:
+            return "no JSON on stdout"
+    return ""
+
+
 def plant_backup_module(path):
     for rel, body in BACKUP_MODULE.items():
         full = os.path.join(path, rel)
@@ -370,9 +474,12 @@ def explain_role(binary, repo, rel):
 
 
 def verify_facts(binary, repo):
-    proc = run(binary, repo, "verify", "--json")
+    return facts_from_verify(run(binary, repo, "verify", "--json").stdout)
+
+
+def facts_from_verify(stdout):
     try:
-        doc = json.loads(proc.stdout)
+        doc = json.loads(stdout)
     except json.JSONDecodeError:
         return None
     gov = doc.get("governance") or {}
@@ -401,6 +508,8 @@ def verify_facts(binary, repo):
         "budget_max_tokens": budget.get("max_tokens"),
         "next_required_action": gov.get("next_required_action"),
         "finding_count": len(gov.get("findings") or []),
+        "finding_codes": sorted({f.get("code") for f in gov.get("findings") or []
+                                 if isinstance(f, dict) and f.get("code")}),
         "orphans": sorted(p for p in orphans if p),
         "observed_removed": sorted(p for p in drift.get("observed_removed") or [] if isinstance(p, str)),
     }
@@ -772,9 +881,143 @@ def check_version(version, shape, old_binary, workdir):
        "" if held else f"authored_in_place={grew}{how} released_objects={code_objects} checkout={moved}")
 
 
+# The downgrade shape: the binary under test writes, the released binary reads.
+# The eight check names keep their meaning with the subject turned around:
+# identity is what the released binary reads back from the fixture the binary
+# under test scanned; aligned, composite identity and no Scope Change are the
+# binary under test's own verdicts after the released binary's excursion;
+# Maintain, the Overview and the no-write guard are the released binary's; and
+# growth is the binary under test authoring over whatever the excursion left.
+def check_downgrade(version, old_binary, workdir):
+    tag = f"{version}[downgrade]"
+    repo = os.path.join(workdir, f"{version}-downgrade")
+    os.makedirs(repo, exist_ok=True)
+    make_fixture(repo)
+    # The rc7 gate on planting the module guards the released `init`; here the
+    # binary under test initializes, so every release reads the module.
+    plant_backup_module(repo)
+    run(BIN, repo, "init", "--locale", "en-US", check=True)
+    run(BIN, repo, "scan", check=True)
+    expects_aligned = release_number(version) >= DOWNGRADE_FLOOR
+
+    # 1. The released binary reads the identities the binary under test stamped.
+    #    The desired policy identity is the floor's fact: equal from the floor
+    #    on, different before it, and scope_change_required says the same.
+    new_scan = verify_facts(BIN, repo)
+    old_scan = verify_facts(old_binary, repo)
+    stamped = ("active_policy_identity", "budget_mode", "budget_max_tokens", "layout_mode", "composite_identity")
+    same = old_scan is not None and new_scan is not None and all(old_scan[k] == new_scan[k] for k in stamped)
+    desired_same = bool(old_scan and new_scan and old_scan["policy_identity"] == new_scan["policy_identity"])
+    stable = same and desired_same is expects_aligned and old_scan["scope_change_required"] is (not expects_aligned)
+    ok(f"{tag}.post_scan_identity_stable", stable,
+       "" if stable else f"floor expects aligned={expects_aligned} old={old_scan} new={new_scan}")
+
+    if not author_to_aligned(BIN, repo):
+        for name in CHECK_NAMES[1:]:
+            ok(f"{tag}.{name}", False, "the binary under test could not author this fixture to aligned")
+        return
+    authored = verify_facts(BIN, repo)
+    before = snapshot(repo)
+
+    # The excursion: the read-only CLI surface, then an Overview and one
+    # Maintain over MCP. A server that dies or hangs on the newer repository is
+    # the crash this shape exists to report, so it is caught and named.
+    unbounded, old_facts = [], None
+    for args in DOWNGRADE_SURFACE:
+        proc = run(old_binary, repo, *args)
+        why = unbounded_answer(proc, "--json" in args)
+        if why:
+            unbounded.append(f"{' '.join(args)}: {why}")
+        if args[0] == "verify":
+            old_facts = facts_from_verify(proc.stdout)
+    maintain, overview, crashed = None, None, ""
+    try:
+        with Session(old_binary, repo) as s:
+            overview = overview_delivery(s)
+            maintain = maintain_facts(s.call("aoci_maintain"))
+    except Exception as err:
+        crashed = f"{type(err).__name__}: {err}"
+    after = snapshot(repo)
+    new = verify_facts(BIN, repo)
+
+    # 2-4. The binary under test's own verdict after the excursion: still
+    #      aligned over every object it authored, same composite identity (which
+    #      the released binary must also have read), no Scope Change demanded.
+    stays = bool(new and new["aligned"] and not new["orphans"] and not new["observed_removed"])
+    ok(f"{tag}.aligned_repo_stays_aligned", stays, "" if stays else f"new={new}")
+    composite = bool(new and authored and old_facts
+                     and new["composite_identity"] == authored["composite_identity"] == old_facts["composite_identity"])
+    ok(f"{tag}.composite_identity_unchanged", composite,
+       "" if composite else f"before={authored and authored['composite_identity']} "
+                            f"released_read={old_facts and old_facts['composite_identity']} "
+                            f"after={new and new['composite_identity']}")
+    ok(f"{tag}.no_scope_change_demanded", bool(new and new["scope_change_required"] is False),
+       "" if (new and new["scope_change_required"] is False) else f"scope_change_required={new and new['scope_change_required']}")
+
+    # 5-6. The released binary's Maintain reaches a terminal state the floor
+    #      allows: `aligned` from the floor on, a named refusal before it, never
+    #      a crash or an unexplained stop. Its Overview delivers the whole index
+    #      either way: every release reads the index the binary under test writes.
+    findings = ((maintain or {}).get("governance") or {}).get("findings")
+    if expects_aligned:
+        terminal = bool(maintain and maintain.get("aligned") is True
+                        and maintain.get("next_action") == "none" and not findings)
+    else:
+        terminal = bool(maintain and maintain.get("aligned") is False
+                        and any(NAMED_REFUSAL.match(code) for code in machine_codes(maintain)))
+    ok(f"{tag}.mcp_maintain_reaches_terminal", terminal and not crashed,
+       "" if (terminal and not crashed) else
+       f"floor expects aligned={expects_aligned} crashed={crashed or None} aligned={maintain and maintain.get('aligned')} "
+       f"next={maintain and maintain.get('next_action')} states={sorted(machine_codes(maintain)) if maintain else None}")
+    code_objects = (authored or {}).get("code_object_count") or 0
+    delivered = bool(overview and overview.get("completed") and overview.get("entry_count") == code_objects
+                     and code_objects > 0)
+    ok(f"{tag}.overview_delivers_complete_index", delivered,
+       "" if delivered else f"crashed={crashed or None} completed={overview and overview.get('completed')} "
+                            f"entry_count={overview and overview.get('entry_count')} objects={code_objects}")
+
+    # 7. Nothing formal moved, and every command of the surface answered in bounds.
+    drift = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+    quiet = not drift and not unbounded and not crashed
+    ok(f"{tag}.read_only_commands_write_nothing", quiet,
+       "" if quiet else ("rewrote " + ", ".join(drift) + " " if drift else "") + "; ".join(unbounded) + (f" mcp: {crashed}" if crashed else ""))
+
+    # 8. Growth after the excursion, read from a checkout: the released Maintain
+    #    may have planned over the fixture, and the binary under test must
+    #    author on top of whatever that left, exactly as `inflight` demands.
+    grown = os.path.join(repo, "pkg", "new dir", "grow.go")
+    os.makedirs(os.path.dirname(grown), exist_ok=True)
+    with open(grown, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("package grow\n\n// Grow is authored by the binary under test.\nfunc Grow() {}\n")
+    grew = author_to_aligned(BIN, repo)
+    checkout = os.path.join(workdir, f"{version}-downgrade-checkout")
+    shutil.copytree(repo, checkout)
+    moved = verify_facts(BIN, checkout)
+    held = bool(grew and moved and moved["aligned"] and not moved["orphans"]
+                and moved["code_object_count"] == code_objects + 1)
+    ok(f"{tag}.growth_stays_aligned_in_a_checkout", held,
+       "" if held else f"authored_in_place={grew} released_objects={code_objects} checkout={moved}")
+
+
+# The label `--self` runs under: the newest CHANGELOG version, or `candidate`
+# when the top section is still Unreleased. release_number() reads either as
+# at least as new as every released floor, which is what a candidate is.
+def changelog_top_label():
+    path = os.path.join(_REPO_DEFAULT, "CHANGELOG.md")
+    with open(path, encoding="utf-8") as fh:
+        match = re.search(r"^## (\S+)", fh.read(), re.M)
+    heading = match.group(1) if match else ""
+    return heading if re.fullmatch(r"v\d+\.\d+\.\d+\S*", heading) else "candidate"
+
+
 def main():
     ap = argparse.ArgumentParser(description="AOCI upgrade-axis black-box suite")
     ap.add_argument("--versions", default="", help="comma-separated release tags (default: every CHANGELOG release)")
+    ap.add_argument("--recent", type=int, default=None, metavar="N",
+                    help="run only the newest N CHANGELOG releases (the layer a push to main gets in CI)")
+    ap.add_argument("--self", dest="self_axis", action="store_true",
+                    help="the binary under test plays both roles of every shape, labelled with the newest "
+                         "CHANGELOG version (or `candidate` under an Unreleased section); downloads nothing")
     ap.add_argument("--allow-offline", action="store_true",
                     help="report a download failure as a skip instead of failing the run")
     args = ap.parse_args()
@@ -782,13 +1025,29 @@ def main():
     if not os.path.exists(BIN):
         print(f"binary under test not found: {BIN} (run make build, or set AOCI_BIN)")
         return 2
+    chosen = sum(1 for flag in (args.versions, args.recent is not None, args.self_axis) if flag)
+    if chosen > 1 or (args.recent is not None and args.recent < 1):
+        print("--versions, --recent N (N >= 1) and --self choose the matrix in three different ways; pass one")
+        return 2
 
-    versions = [v.strip() for v in args.versions.split(",") if v.strip()] or released_versions()
+    all_versions = released_versions()
+    if args.self_axis:
+        versions = [changelog_top_label()]
+    elif args.versions:
+        versions = [v.strip() for v in args.versions.split(",") if v.strip()]
+    elif args.recent:
+        versions = all_versions[-args.recent:]
+    else:
+        versions = all_versions
     if not versions:
         print("no released versions discovered in CHANGELOG.md")
         return 2
     print(f"binary under test: {BIN}")
-    print(f"upgrade matrix ({len(versions)}): {', '.join(versions)}\n")
+    if args.self_axis:
+        print(f"self-axis: the binary under test plays both roles of every shape as {versions[0]}\n")
+    else:
+        layer = f" of {len(all_versions)}, --recent {args.recent}" if args.recent else ""
+        print(f"upgrade matrix ({len(versions)}{layer}): {', '.join(versions)}\n")
 
     # The newest CHANGELOG heading is allowed to precede its GitHub release by
     # the one commit the release cut takes: that commit is what the four gates
@@ -796,29 +1055,35 @@ def main():
     # version alone is therefore a characterization, not a failure. It is the
     # only exemption: an older version answering 404 is a vanished release, and
     # any other fetch error is still the outage it looks like.
-    newest = (released_versions() or [None])[-1]
+    newest = (all_versions or [None])[-1]
     skipped, pending, probed = [], [], []
     with tempfile.TemporaryDirectory(prefix="aoci-upgrade-") as workdir:
         for version in versions:
-            try:
-                old_binary = fetch_release_binary(version)
-            except (urllib.error.URLError, OSError, RuntimeError) as err:
-                if isinstance(err, urllib.error.HTTPError) and err.code == 404 and version == newest:
-                    pending.append(version)
-                    print(f"CHAR {version}.release_pending | changelog section cut, release not yet published")
+            if args.self_axis:
+                old_binary = BIN
+            else:
+                try:
+                    old_binary = fetch_release_binary(version)
+                except (urllib.error.URLError, OSError, RuntimeError) as err:
+                    if isinstance(err, urllib.error.HTTPError) and err.code == 404 and version == newest:
+                        pending.append(version)
+                        print(f"CHAR {version}.release_pending | changelog section cut, release not yet published")
+                        continue
+                    # A download failure is a real gate failure by default: a suite
+                    # that quietly skips its whole matrix is a false green.
+                    if args.allow_offline:
+                        skipped.append(f"{version}: {err}")
+                        print(f"SKIP {version} | {err}")
+                        continue
+                    ok(f"{version}.release_binary_available", False, str(err))
                     continue
-                # A download failure is a real gate failure by default: a suite
-                # that quietly skips its whole matrix is a false green.
-                if args.allow_offline:
-                    skipped.append(f"{version}: {err}")
-                    print(f"SKIP {version} | {err}")
-                    continue
-                ok(f"{version}.release_binary_available", False, str(err))
-                continue
             probed.append(version)
             for shape in SHAPES:
                 try:
-                    check_version(version, shape, old_binary, workdir)
+                    if shape == "downgrade":
+                        check_downgrade(version, old_binary, workdir)
+                    else:
+                        check_version(version, shape, old_binary, workdir)
                 except Exception as err:  # a crash while probing one shape is that shape's failure
                     ok(f"{version}[{shape}].upgrade_probe_completed", False, f"{type(err).__name__}: {err}")
     # An exemption or a skip that empties the matrix is exactly the false green
