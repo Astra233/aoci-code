@@ -121,10 +121,19 @@ jobs:
           git diff --exit-code
       # 升级轴: 另外三套套件的夹具全部由被测二进制自己铸造, 所以"版本之间变了的
       # preimage"对它们结构性不可见。这一套用每个已发布版本的真二进制建仓授权,
-      # 再让被测二进制接管。它要下载 Release 资产, 因此只能待在这条联网的夜间线上。
+      # 再让被测二进制接管, 并在 downgrade 形状里反过来让旧二进制读新仓。它要下载
+      # Release 资产, 因此只能待在这条联网的线上。
+      # 分层: push 到 main 只跑最近三个版本(一次改动现实中会遇到的那几个, 每次
+      # 推送都证), 夜间 schedule 与手动 dispatch 跑完整列表(随发版线性变长, 是
+      # 最老的 preimage 唯一的证据)。候选二进制自己当旧版本的那一跑在
+      # release-rehearsal 与 make verify 的 axis-self 里, 不在这里。
       - name: black-box upgrade axis over every released binary
         run: |
-          python3 scripts/blackbox/mcp_upgrade.py
+          if [ "${{ github.event_name }}" = push ]; then
+            python3 scripts/blackbox/mcp_upgrade.py --recent 3
+          else
+            python3 scripts/blackbox/mcp_upgrade.py
+          fi
           git diff --exit-code
       # 覆盖率是可见性而非门禁: 让安全核心包的薄弱处暴露在构建摘要里。
       - name: coverage snapshot
