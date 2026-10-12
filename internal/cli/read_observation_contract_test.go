@@ -110,33 +110,17 @@ func TestReadObservationCommandsKeepFormalAssetsAndWriteAuditEvidence(t *testing
 		t.Fatal(err)
 	}
 
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	oldQuiet := flagQuiet
-	flagRepo = root
-	flagJSON = false
-	flagQuiet = false
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-		flagQuiet = oldQuiet
-	})
-
-	commands := []struct {
-		name    string
-		command *cobra.Command
+	for _, current := range []struct {
+		name      string
+		arguments []string
 	}{
-		{name: "verify", command: newVerifyCmd()},
-		{name: "check", command: newCheckCmd()},
-		{name: "index_score", command: newIndexScoreCmd()},
-		{name: "index_inventory", command: newIndexInventoryCmd()},
-	}
-	for _, current := range commands {
-		var output bytes.Buffer
-		current.command.SetOut(&output)
-		current.command.SetErr(&output)
-		if err := current.command.RunE(current.command, nil); err != nil {
-			t.Fatalf("%s observation failed: %v\n%s", current.name, err, output.String())
+		{name: "verify", arguments: []string{"verify"}},
+		{name: "check", arguments: []string{"check"}},
+		{name: "index_score", arguments: []string{"index", "score"}},
+		{name: "index_inventory", arguments: []string{"index", "inventory"}},
+	} {
+		if stdout, stderr, code := runCLI(t, root, current.arguments...); code != ExitOK {
+			t.Fatalf("%s observation failed: exit %d\n%s%s", current.name, code, stdout, stderr)
 		}
 	}
 

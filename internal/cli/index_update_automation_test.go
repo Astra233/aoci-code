@@ -5,7 +5,6 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -136,32 +135,8 @@ func runUpdateAutomationCommand(
 ) (string, error) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	flagRepo = root
-
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-	})
-
-	command := newIndexUpdateCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-
-	var output bytes.Buffer
-
-	command.SetOut(
-		&output,
-	)
-	command.SetErr(
-		&output,
-	)
-
-	err := command.RunE(
-		command,
-		nil,
-	)
-
-	return output.String(), err
+	stdout, stderr, code := runCLI(t, root, "index", "update")
+	return stdout + stderr, exitError(stderr, code)
 }
 
 func writeUpdateAutomationFile(

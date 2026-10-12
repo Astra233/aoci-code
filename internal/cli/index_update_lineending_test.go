@@ -2,7 +2,6 @@
 package cli
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,25 +21,8 @@ func runUpdateWithoutDryRun(
 ) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	flagRepo = root
-
-	t.Cleanup(
-		func() {
-			flagRepo = oldRepo
-		},
-	)
-
-	command := newIndexUpdateCmd()
-	var output bytes.Buffer
-
-	command.SetOut(&output)
-	command.SetErr(&output)
-	command.SetArgs([]string{})
-
-	err := command.Execute()
-
-	return output.String(), err
+	stdout, stderr, code := runCLI(t, root, "index", "update")
+	return stdout + stderr, exitError(stderr, code)
 }
 
 // TestUpdateLineEndingToleranceReturnsBeforeAI验证默认宽容时零目标、零草稿、零外发。

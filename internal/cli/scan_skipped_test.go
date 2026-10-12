@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/aoci-spec/aoci-code/internal/testkit"
 )
 
 func writeHeldSourcesTree(t *testing.T, root string) {
@@ -174,20 +176,8 @@ func TestScanReportsTheAuthoringEstimateAndDryRunHintsAtNarrowing(t *testing.T) 
 
 func runHeldSourcesCLIWithStdout(t *testing.T, root string, args ...string) (int, string) {
 	t.Helper()
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	original := os.Stdout
-	os.Stdout = writer
-	done := make(chan string)
-	go func() {
-		var captured bytes.Buffer
-		_, _ = captured.ReadFrom(reader)
-		done <- captured.String()
-	}()
-	code, out := runHeldSourcesCLI(t, root, args...)
-	os.Stdout = original
-	_ = writer.Close()
-	return code, out + <-done
+	var code int
+	var out string
+	printed := testkit.CaptureStdout(t, func() { code, out = runHeldSourcesCLI(t, root, args...) })
+	return code, out + printed
 }

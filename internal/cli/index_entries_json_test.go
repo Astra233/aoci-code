@@ -14,116 +14,13 @@ import (
 func runEntriesCommandJSON(
 	t *testing.T,
 	root string,
-	command *cobraCommandAdapter,
+	subcommand string,
 	runID string,
 ) (string, error) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	flagRepo = root
-	flagJSON = true
-
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-	})
-
-	var output bytes.Buffer
-	command.SetOut(
-		&output,
-	)
-	command.SetErr(
-		&output,
-	)
-
-	err := command.Run(
-		[]string{
-			runID,
-		},
-	)
-	return output.String(), err
-}
-
-// cobraCommandAdapter只暴露专项测试需要的命令能力。
-type cobraCommandAdapter struct {
-	setOut func(*bytes.Buffer)
-	setErr func(*bytes.Buffer)
-	run    func([]string) error
-}
-
-func (adapter *cobraCommandAdapter) SetOut(
-	output *bytes.Buffer,
-) {
-	adapter.setOut(
-		output,
-	)
-}
-
-func (adapter *cobraCommandAdapter) SetErr(
-	output *bytes.Buffer,
-) {
-	adapter.setErr(
-		output,
-	)
-}
-
-func (adapter *cobraCommandAdapter) Run(
-	args []string,
-) error {
-	return adapter.run(
-		args,
-	)
-}
-
-func entriesCheckJSONAdapter() *cobraCommandAdapter {
-	command := newEntriesCheckCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-
-	return &cobraCommandAdapter{
-		setOut: func(output *bytes.Buffer) {
-			command.SetOut(
-				output,
-			)
-		},
-		setErr: func(output *bytes.Buffer) {
-			command.SetErr(
-				output,
-			)
-		},
-		run: func(args []string) error {
-			return command.RunE(
-				command,
-				args,
-			)
-		},
-	}
-}
-
-func entriesDiffJSONAdapter() *cobraCommandAdapter {
-	command := newEntriesDiffCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-
-	return &cobraCommandAdapter{
-		setOut: func(output *bytes.Buffer) {
-			command.SetOut(
-				output,
-			)
-		},
-		setErr: func(output *bytes.Buffer) {
-			command.SetErr(
-				output,
-			)
-		},
-		run: func(args []string) error {
-			return command.RunE(
-				command,
-				args,
-			)
-		},
-	}
+	stdout, stderr, code := runCLI(t, root, "--json", "index", "entries", subcommand, runID)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 func TestEntriesCheckJSONSuccessIsSingleObject(
@@ -139,7 +36,7 @@ func TestEntriesCheckJSONSuccessIsSingleObject(
 	output, err := runEntriesCommandJSON(
 		t,
 		root,
-		entriesCheckJSONAdapter(),
+		"check",
 		runID,
 	)
 	if err != nil {
@@ -224,7 +121,7 @@ func TestEntriesCheckJSONRejectReturnsRecoveryAndExitInvalid(
 	output, err := runEntriesCommandJSON(
 		t,
 		root,
-		entriesCheckJSONAdapter(),
+		"check",
 		runID,
 	)
 
@@ -294,7 +191,7 @@ func TestEntriesCheckJSONRejectFinalizerKeepsSingleObject(
 	commandOutput, commandErr := runEntriesCommandJSON(
 		t,
 		root,
-		entriesCheckJSONAdapter(),
+		"check",
 		runID,
 	)
 
@@ -361,7 +258,7 @@ func TestEntriesDiffJSONPreservesCompleteEntryLines(
 	output, err := runEntriesCommandJSON(
 		t,
 		root,
-		entriesDiffJSONAdapter(),
+		"diff",
 		runID,
 	)
 	if err != nil {

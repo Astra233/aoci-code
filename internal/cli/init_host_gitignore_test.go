@@ -8,33 +8,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/aoci-spec/aoci-code/internal/testkit"
 )
 
 func initGitRepo(t *testing.T) string {
 	t.Helper()
-	root := t.TempDir()
-	for _, args := range [][]string{
-		{"init", "-q"},
-		{"config", "user.email", "t@example.com"},
-		{"config", "user.name", "t"},
-	} {
-		command := exec.Command("git", args...)
-		command.Dir = root
-		if out, err := command.CombinedOutput(); err != nil {
-			t.Skipf("git unavailable: %v %s", err, out)
-		}
-	}
-	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "src", "a.go"),
-		[]byte("package src\n\nfunc A() int { return 1 }\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	root := testkit.GitRepo(t)
+	testkit.WriteFile(t, root, "src/a.go", "package src\n\nfunc A() int { return 1 }\n")
 	return root
 }
 
@@ -115,13 +99,8 @@ func TestInitNeverOverridesAnAlreadyTrackedHostConfig(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, ".codex", "config.toml"), []byte("# theirs\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	for _, args := range [][]string{{"add", ".codex/config.toml"}, {"commit", "-qm", "keep"}} {
-		command := exec.Command("git", args...)
-		command.Dir = root
-		if out, err := command.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v %s", args, err, out)
-		}
-	}
+	testkit.Git(t, root, "add", ".codex/config.toml")
+	testkit.Git(t, root, "commit", "-qm", "keep")
 	if _, err := runInit(t, root, "--agent=codex", "--hooks=false"); err != nil {
 		t.Fatal(err)
 	}

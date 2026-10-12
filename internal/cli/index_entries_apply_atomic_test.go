@@ -14,7 +14,6 @@
 package cli
 
 import (
-	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -249,25 +248,8 @@ func runManualAtomicCheck(
 ) (string, error) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	flagRepo = root
-	defer func() {
-		flagRepo = oldRepo
-	}()
-
-	command := newEntriesCheckCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-
-	var output bytes.Buffer
-	command.SetOut(&output)
-	command.SetErr(&output)
-
-	err := command.RunE(
-		command,
-		[]string{runID},
-	)
-	return output.String(), err
+	stdout, stderr, code := runCLI(t, root, "index", "entries", "check", runID)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 func runManualAtomicApply(
@@ -277,25 +259,8 @@ func runManualAtomicApply(
 ) (string, error) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	flagRepo = root
-	defer func() {
-		flagRepo = oldRepo
-	}()
-
-	command := newEntriesApplyCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-
-	var output bytes.Buffer
-	command.SetOut(&output)
-	command.SetErr(&output)
-
-	err := command.RunE(
-		command,
-		[]string{runID},
-	)
-	return output.String(), err
+	stdout, stderr, code := runCLI(t, root, "index", "entries", "apply", runID)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 func TestEntriesApplyUsesAtomicBatchPipeline(
@@ -654,7 +619,10 @@ func TestEntriesApplyBaselineFailureIsNotMarkedAppliedAndReplayRecovers(t *testi
 		t.Fatalf("Baseline故障必须以error写入Ledger: %+v", events)
 	}
 	unblockBaseline()
-	if output, err := runManualAtomicApply(t, root, runID); err != nil {
+	// The failed Apply left its write receipt, so the command line now routes
+	// to `index entries recover`; the replay semantics belong to the apply
+	// pipeline itself and are exercised below that gate.
+	if output, err := runBelowRecoveryGate(t, root, newEntriesApplyCmd(), runID); err != nil {
 		t.Fatalf("重放同一批次应只修复Baseline并完成审计: %v\n%s", err, output)
 	}
 	manifest, err = draft.LoadManifest(root, runID)

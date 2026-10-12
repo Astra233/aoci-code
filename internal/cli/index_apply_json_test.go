@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/spf13/cobra"
 )
 
 // runApplyWrapperJSON在JSON模式下执行一个固定Run的Apply包装器。
@@ -18,43 +16,21 @@ func runApplyWrapperJSON(
 	t *testing.T,
 	root,
 	runID string,
-	command *cobra.Command,
+	kind string,
 ) (string, error) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	oldQuiet := flagQuiet
-
-	flagRepo = root
-	flagJSON = true
-	flagQuiet = false
-
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-		flagQuiet = oldQuiet
-	})
-
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-
-	var output bytes.Buffer
-	command.SetOut(
-		&output,
-	)
-	command.SetErr(
-		&output,
-	)
-
-	err := command.RunE(
-		command,
-		[]string{
-			runID,
-		},
-	)
-
-	return output.String(), err
+	paths := map[string][]string{
+		applyKindEntries:  {"index", "entries", "apply"},
+		applyKindHeader:   {"index", "header", "apply"},
+		applyKindCuration: {"index", "agent", "curation", "apply"},
+	}
+	arguments, known := paths[kind]
+	if !known {
+		t.Fatalf("no JSON apply wrapper is mounted for kind %q", kind)
+	}
+	stdout, stderr, code := runCLI(t, root, append(append([]string{"--json"}, arguments...), runID)...)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 func TestEntriesApplyJSONSuccessReportsSideEffects(
@@ -80,7 +56,7 @@ func TestEntriesApplyJSONSuccessReportsSideEffects(
 		t,
 		root,
 		runID,
-		newEntriesApplyJSONCmd(),
+		applyKindEntries,
 	)
 	if err != nil {
 		t.Fatalf(
@@ -200,7 +176,7 @@ func TestEntriesApplyJSONConflictReportsZeroWrite(
 		t,
 		root,
 		runID,
-		newEntriesApplyJSONCmd(),
+		applyKindEntries,
 	)
 
 	var exitErr *ExitError
@@ -316,7 +292,7 @@ func TestEntriesApplyJSONFinalizerKeepsSingleObject(
 		t,
 		root,
 		runID,
-		newEntriesApplyJSONCmd(),
+		applyKindEntries,
 	)
 
 	var stdout bytes.Buffer

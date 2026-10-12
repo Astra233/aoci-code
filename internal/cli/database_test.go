@@ -239,25 +239,15 @@ func TestAutoBaselineAcceptanceBootstrapsDatabaseWithoutMigrationOrCodeRewrite(t
 	if err := dbevidence.WriteSnapshot(root, manifest, snapshot, files); err != nil {
 		t.Fatal(err)
 	}
-	var stdout, stderr bytes.Buffer
-	oldRepo, oldJSON := flagRepo, flagJSON
-	flagRepo, flagJSON = root, true
-	defer func() { flagRepo, flagJSON = oldRepo, oldJSON }()
-	command := newDatabaseBaselineAcceptCmd()
-	command.SetOut(&stdout)
-	command.SetErr(&stderr)
-	command.SetArgs([]string{"--source", "primary", "--snapshot-sha", snapshot.SourceSnapshotSHA256})
-	if err := command.Execute(); err != nil {
-		t.Fatalf("accept/bootstrap failed: err=%v stdout=%s stderr=%s", err, stdout.String(), stderr.String())
-	}
+	stdout := mustCLI(t, root, "--json", "database", "baseline", "accept", "--source", "primary", "--snapshot-sha", snapshot.SourceSnapshotSHA256)
 	var result struct {
 		DatabaseBootstrap *databasebootstrap.Result `json:"database_bootstrap"`
 	}
-	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
 		t.Fatal(err)
 	}
 	if result.DatabaseBootstrap == nil || !result.DatabaseBootstrap.DatabaseReady || result.DatabaseBootstrap.DatabaseEntryCount != 0 {
-		t.Fatalf("Database Bootstrap result missing: %s", stdout.String())
+		t.Fatalf("Database Bootstrap result missing: %s", stdout)
 	}
 	codeAfter, _ := os.ReadFile(filepath.Join(root, "aoci.code.txt"))
 	if !bytes.Equal(codeBefore, codeAfter) {
@@ -479,7 +469,6 @@ func TestDatabaseCognitionHumanStatusShowsSourceBlocker(t *testing.T) {
 
 func databaseCLIRepo(t *testing.T) string {
 	t.Helper()
-	t.Cleanup(resetRootFlags)
 	root := t.TempDir()
 	initCLITestGitRepository(t, root)
 	cfg := config.DefaultConfig()

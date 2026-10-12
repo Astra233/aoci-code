@@ -12,35 +12,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/cobra"
-
-	"github.com/aoci-spec/aoci-code/internal/cognition"
-	"github.com/aoci-spec/aoci-code/internal/config"
 	"github.com/aoci-spec/aoci-code/textassets"
 )
 
 func volumeGuideJSON(t *testing.T, root string) volumeAgentGuide {
 	t.Helper()
-	cfg, err := config.Load(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set, err := cognition.Load(root, cfg.IndexPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var output bytes.Buffer
-	command := &cobra.Command{}
-	command.SetOut(&output)
-	oldJSON := flagJSON
-	flagJSON = true
-	t.Cleanup(func() { flagJSON = oldJSON })
-	if err := writeVolumeAgentGuide(command, root, cfg, set, "codex"); err != nil {
-		t.Fatal(err)
-	}
+	output := mustCLI(t, root, "--json", "index", "agent", "guide", "--agent", "codex")
 	var guide volumeAgentGuide
-	if err := json.Unmarshal(output.Bytes(), &guide); err != nil {
-		t.Fatalf("guide is not JSON: %v\n%s", err, output.String())
+	if err := json.Unmarshal([]byte(output), &guide); err != nil {
+		t.Fatalf("guide is not JSON: %v\n%s", err, output)
 	}
 	return guide
 }

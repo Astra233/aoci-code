@@ -15,7 +15,6 @@ import (
 	"github.com/aoci-spec/aoci-code/internal/dbevidence"
 	"github.com/aoci-spec/aoci-code/internal/mcptools"
 	"github.com/aoci-spec/aoci-code/textassets"
-	"github.com/spf13/cobra"
 )
 
 func TestVerifyVolumesSeparatesStructureFromGovernance(t *testing.T) {
@@ -36,17 +35,11 @@ func TestVerifyVolumesSeparatesStructureFromGovernance(t *testing.T) {
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
-	oldRepo, oldJSON, oldQuiet := flagRepo, flagJSON, flagQuiet
-	flagRepo, flagJSON, flagQuiet = root, true, false
-	t.Cleanup(func() { flagRepo, flagJSON, flagQuiet = oldRepo, oldJSON, oldQuiet })
-	var output bytes.Buffer
-	cmd := &cobra.Command{}
-	cmd.SetOut(&output)
-	cmd.SetErr(&output)
-	if err := runVerify(cmd, nil); err == nil {
+	stdout, stderr, code := runCLI(t, root, "--json", "verify")
+	if code == ExitOK {
 		t.Fatal("structurally valid Volumes without Baseline or accepted Evidence must not be governance-aligned")
 	}
-	text := output.String()
+	text := stdout + stderr
 	for _, want := range []string{`"layout_mode": "volumes-v1"`, `"structure_valid": true`, `"governance_aligned": false`, `"read_only_candidate": true`, `"object_count": 8`, `"asset_state": "absent"`} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("Volume Verify missing %s:\n%s", want, text)
@@ -78,25 +71,13 @@ func TestRootMetaVolumesVerifyCheckAndGuideAlign(t *testing.T) {
 	if err := baseline.Save(root, baseline.NewBaseline(nil)); err != nil {
 		t.Fatal(err)
 	}
-	set, err := cognition.Load(root, cfg.IndexPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldRepo, oldJSON, oldQuiet := flagRepo, flagJSON, flagQuiet
-	flagRepo, flagJSON, flagQuiet = root, true, false
-	t.Cleanup(func() { flagRepo, flagJSON, flagQuiet = oldRepo, oldJSON, oldQuiet })
-	for name, invoke := range map[string]func(*cobra.Command) error{
-		"verify": func(cmd *cobra.Command) error { return runVerify(cmd, nil) },
-		"check":  func(cmd *cobra.Command) error { return runCheckCommand(cmd, nil) },
-		"guide":  func(cmd *cobra.Command) error { return writeVolumeAgentGuide(cmd, root, cfg, set, "codex") },
-	} {
+	for name, arguments := range volumeGovernanceCommands {
 		t.Run(name, func(t *testing.T) {
 			var output bytes.Buffer
-			cmd := &cobra.Command{}
-			cmd.SetOut(&output)
-			cmd.SetErr(&output)
-			if err := invoke(cmd); err != nil {
-				t.Fatal(err)
+			stdout, stderr, code := runCLI(t, root, arguments...)
+			output.WriteString(stdout + stderr)
+			if code != ExitOK {
+				t.Fatalf("%s: exit %d\n%s", name, code, output.String())
 			}
 			for _, want := range []string{`"governance_aligned": true`, `"network_accessed": false`} {
 				if !strings.Contains(output.String(), want) {
@@ -142,25 +123,12 @@ func TestVolumeOwnershipConflictRepairClosesVerifyCheckAndGuide(t *testing.T) {
 	if err := baseline.Save(root, state); err != nil {
 		t.Fatal(err)
 	}
-	set, err := cognition.Load(root, cfg.IndexPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldRepo, oldJSON, oldQuiet := flagRepo, flagJSON, flagQuiet
-	flagRepo, flagJSON, flagQuiet = root, true, false
-	t.Cleanup(func() { flagRepo, flagJSON, flagQuiet = oldRepo, oldJSON, oldQuiet })
-	for name, invoke := range map[string]func(*cobra.Command) error{
-		"verify": func(cmd *cobra.Command) error { return runVerify(cmd, nil) },
-		"check":  func(cmd *cobra.Command) error { return runCheckCommand(cmd, nil) },
-		"guide":  func(cmd *cobra.Command) error { return writeVolumeAgentGuide(cmd, root, cfg, set, "codex") },
-	} {
+	for name, arguments := range volumeGovernanceCommands {
 		t.Run(name, func(t *testing.T) {
 			var output bytes.Buffer
-			cmd := &cobra.Command{}
-			cmd.SetOut(&output)
-			cmd.SetErr(&output)
-			err := invoke(cmd)
-			if name != "guide" && err == nil {
+			stdout, stderr, code := runCLI(t, root, arguments...)
+			output.WriteString(stdout + stderr)
+			if name != "guide" && code == ExitOK {
 				t.Fatalf("%s accepted an ownership conflict", name)
 			}
 			for _, want := range []string{
@@ -228,22 +196,13 @@ func TestVolumeOwnershipConflictRepairClosesVerifyCheckAndGuide(t *testing.T) {
 		t.Fatalf("ownership repair retained the misplaced Code Entry: err=%v\n%s", readErr, codeAfter)
 	}
 
-	set, err = cognition.Load(root, cfg.IndexPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for name, invoke := range map[string]func(*cobra.Command) error{
-		"verify": func(cmd *cobra.Command) error { return runVerify(cmd, nil) },
-		"check":  func(cmd *cobra.Command) error { return runCheckCommand(cmd, nil) },
-		"guide":  func(cmd *cobra.Command) error { return writeVolumeAgentGuide(cmd, root, cfg, set, "codex") },
-	} {
+	for name, arguments := range volumeGovernanceCommands {
 		t.Run("after_repair_"+name, func(t *testing.T) {
 			var output bytes.Buffer
-			cmd := &cobra.Command{}
-			cmd.SetOut(&output)
-			cmd.SetErr(&output)
-			if err := invoke(cmd); err != nil {
-				t.Fatalf("%s remained blocked after ownership repair: %v\n%s", name, err, output.String())
+			stdout, stderr, code := runCLI(t, root, arguments...)
+			output.WriteString(stdout + stderr)
+			if code != ExitOK {
+				t.Fatalf("%s remained blocked after ownership repair: exit %d\n%s", name, code, output.String())
 			}
 			if !strings.Contains(output.String(), `"governance_aligned": true`) {
 				t.Fatalf("%s did not report alignment:\n%s", name, output.String())
@@ -271,26 +230,14 @@ func TestFourLegalVolumeLayoutsVerifyCheckAndGuideMatrix(t *testing.T) {
 		{name: "code_database", code: true, database: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			root, cfg := alignedVolumeCLIFixture(t, test.code, test.database)
-			set, err := cognition.Load(root, cfg.IndexPath)
-			if err != nil {
-				t.Fatal(err)
-			}
-			oldRepo, oldJSON, oldQuiet := flagRepo, flagJSON, flagQuiet
-			flagRepo, flagJSON, flagQuiet = root, true, false
-			t.Cleanup(func() { flagRepo, flagJSON, flagQuiet = oldRepo, oldJSON, oldQuiet })
-			for name, invoke := range map[string]func(*cobra.Command) error{
-				"verify": func(cmd *cobra.Command) error { return runVerify(cmd, nil) },
-				"check":  func(cmd *cobra.Command) error { return runCheckCommand(cmd, nil) },
-				"guide":  func(cmd *cobra.Command) error { return writeVolumeAgentGuide(cmd, root, cfg, set, "codex") },
-			} {
+			root, _ := alignedVolumeCLIFixture(t, test.code, test.database)
+			for name, arguments := range volumeGovernanceCommands {
 				t.Run(name, func(t *testing.T) {
 					var output bytes.Buffer
-					cmd := &cobra.Command{}
-					cmd.SetOut(&output)
-					cmd.SetErr(&output)
-					if err := invoke(cmd); err != nil {
-						t.Fatalf("%s rejected a legal layout: %v\n%s", name, err, output.String())
+					stdout, stderr, code := runCLI(t, root, arguments...)
+					output.WriteString(stdout + stderr)
+					if code != ExitOK {
+						t.Fatalf("%s rejected a legal layout: exit %d\n%s", name, code, output.String())
 					}
 					for _, want := range []string{`"structure_valid": true`, `"governance_aligned": true`, `"network_accessed": false`} {
 						if !strings.Contains(output.String(), want) {
@@ -314,7 +261,7 @@ func TestFourLegalVolumeLayoutsVerifyCheckAndGuideMatrix(t *testing.T) {
 }
 
 func TestCognitionOptimizationCheckpointDoesNotChangeVerifyCheckOrGuide(t *testing.T) {
-	root, cfg := alignedVolumeCLIFixture(t, true, false)
+	root, _ := alignedVolumeCLIFixture(t, true, false)
 	if _, err := cognitionoptimization.Create(root, cognitionoptimization.CreateInput{
 		OptimizationID:      strings.Repeat("a", 64),
 		CurrentBatchID:      strings.Repeat("b", 64),
@@ -322,26 +269,13 @@ func TestCognitionOptimizationCheckpointDoesNotChangeVerifyCheckOrGuide(t *testi
 	}); err != nil {
 		t.Fatal(err)
 	}
-	set, err := cognition.Load(root, cfg.IndexPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldRepo, oldJSON, oldQuiet := flagRepo, flagJSON, flagQuiet
-	flagRepo, flagJSON, flagQuiet = root, true, false
-	t.Cleanup(func() { flagRepo, flagJSON, flagQuiet = oldRepo, oldJSON, oldQuiet })
-
-	for name, invoke := range map[string]func(*cobra.Command) error{
-		"verify": func(cmd *cobra.Command) error { return runVerify(cmd, nil) },
-		"check":  func(cmd *cobra.Command) error { return runCheckCommand(cmd, nil) },
-		"guide":  func(cmd *cobra.Command) error { return writeVolumeAgentGuide(cmd, root, cfg, set, "codex") },
-	} {
+	for name, arguments := range volumeGovernanceCommands {
 		t.Run(name, func(t *testing.T) {
 			var output bytes.Buffer
-			cmd := &cobra.Command{}
-			cmd.SetOut(&output)
-			cmd.SetErr(&output)
-			if err := invoke(cmd); err != nil {
-				t.Fatalf("%s treated an optimization draft as formal governance debt: %v\n%s", name, err, output.String())
+			stdout, stderr, code := runCLI(t, root, arguments...)
+			output.WriteString(stdout + stderr)
+			if code != ExitOK {
+				t.Fatalf("%s treated an optimization draft as formal governance debt: exit %d\n%s", name, code, output.String())
 			}
 			if !strings.Contains(output.String(), `"governance_aligned": true`) {
 				t.Fatalf("%s lost formal alignment while an optimization checkpoint was active:\n%s", name, output.String())
@@ -366,20 +300,20 @@ func TestRC175TestOnlyVolumeReadOnlyGapIsClosedByCurrentCheck(t *testing.T) {
 		t.Fatal("rc17.5 black-box fixture no longer reproduces the historical stop")
 	}
 	root, _ := alignedVolumeCLIFixture(t, true, true)
-	oldRepo, oldJSON, oldQuiet := flagRepo, flagJSON, flagQuiet
-	flagRepo, flagJSON, flagQuiet = root, true, false
-	t.Cleanup(func() { flagRepo, flagJSON, flagQuiet = oldRepo, oldJSON, oldQuiet })
 	var output bytes.Buffer
-	cmd := &cobra.Command{}
-	cmd.SetOut(&output)
-	cmd.SetErr(&output)
-	if err := runCheckCommand(cmd, nil); err != nil {
-		t.Fatal(err)
-	}
+	output.WriteString(mustCLI(t, root, "--json", "check"))
 	if strings.Contains(output.String(), rc175BlackBoxOutcome) || !strings.Contains(output.String(), `"ok": true`) ||
 		!strings.Contains(output.String(), `"governance_aligned": true`) {
 		t.Fatalf("rc18 did not close the test-only rc17.5 gap:\n%s", output.String())
 	}
+}
+
+// volumeGovernanceCommands are the three read-only surfaces a Volumes layout
+// answers through, each in JSON.
+var volumeGovernanceCommands = map[string][]string{
+	"verify": {"--json", "verify"},
+	"check":  {"--json", "check"},
+	"guide":  {"--json", "index", "agent", "guide", "--agent", "codex"},
 }
 
 func alignedVolumeCLIFixture(t *testing.T, code, database bool) (string, *config.Config) {
@@ -492,12 +426,9 @@ func TestDoctorReadsVolumeLayoutWithoutLegacyDocument(t *testing.T) {
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
-	oldRepo := flagRepo
-	flagRepo = root
-	t.Cleanup(func() { flagRepo = oldRepo })
-
-	output, err := runDoctor(t, "")
-	if err == nil {
+	stdout, stderr, code := runCLI(t, root, "doctor")
+	output := stdout + stderr
+	if code == ExitOK {
 		t.Fatal("doctor should still report the intentionally absent Baseline")
 	}
 	if !strings.Contains(output, "2") || !strings.Contains(output, "8") {

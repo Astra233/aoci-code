@@ -2,7 +2,6 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -21,39 +20,8 @@ func runHeaderDiffJSON(
 ) (string, error) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	oldQuiet := flagQuiet
-
-	flagRepo = root
-	flagJSON = true
-	flagQuiet = false
-
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-		flagQuiet = oldQuiet
-	})
-
-	command := newHeaderDiffCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-
-	var output bytes.Buffer
-	command.SetOut(
-		&output,
-	)
-	command.SetErr(
-		&output,
-	)
-
-	err := command.RunE(
-		command,
-		[]string{
-			runID,
-		},
-	)
-	return output.String(), err
+	stdout, stderr, code := runCLI(t, root, "--json", "index", "header", "diff", runID)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 func runCurationDiffJSON(
@@ -63,39 +31,8 @@ func runCurationDiffJSON(
 ) (string, error) {
 	t.Helper()
 
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	oldQuiet := flagQuiet
-
-	flagRepo = root
-	flagJSON = true
-	flagQuiet = false
-
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-		flagQuiet = oldQuiet
-	})
-
-	command := newAgentCurationDiffCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-
-	var output bytes.Buffer
-	command.SetOut(
-		&output,
-	)
-	command.SetErr(
-		&output,
-	)
-
-	err := command.RunE(
-		command,
-		[]string{
-			runID,
-		},
-	)
-	return output.String(), err
+	stdout, stderr, code := runCLI(t, root, "--json", "index", "agent", "curation", "diff", runID)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 func TestHeaderDiffJSONContainsFullHeadersAndReview(
@@ -218,7 +155,18 @@ func TestHeaderDiffJSONFailureWritesNoPartialReport(
 			"损坏Manifest必须使Header Diff失败",
 		)
 	}
-	if output != "" {
+	// The executor answers a JSON failure with one error envelope; nothing
+	// of a success report may be in it.
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(output), &envelope); err != nil {
+		t.Fatalf(
+			"Header审计前失败只能输出一个错误信封: %v\n%q",
+			err,
+			output,
+		)
+	}
+	if keys := sortedRawKeys(envelope); strings.Join(keys, ",") != "error_code,exit_code,message,ok,version" ||
+		string(envelope["ok"]) != "false" {
 		t.Fatalf(
 			"Header审计前失败不得输出部分成功报告: %q",
 			output,

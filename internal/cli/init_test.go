@@ -15,20 +15,17 @@
 //	五、agent 白名单(P-04): 拼错的 --agent 值 ExitConfig 且零写入;
 //	六、hooks 支持边界(P-04): codex+--hooks 必须真实安装压缩生命周期接入。
 //
-// 测试工程纪律: init 的 --agent/--hooks/--here 为包级闭包变量,同进程多次
-// Execute 会残留上次取值 —— 每次调用必须显式传 --agent 与 --hooks 取值
-// (空值/false 复位),杜绝跨用例污染;--here 在 runInit 路径(flagRepo 覆盖
-// 定根,定位恒成功)无效果,仅裸目录辅助 runInitBare 强制显式传值。
-// flagRepo/flagQuiet 全局覆盖定根与静音,不并行。
-// 命令取用口复用 check_test.go 的 findRegisteredCommand(同包)。
+// 测试工程纪律: 每次 init 都经 runCLI/runCLIBare 走一次完整的进程级调用
+// (根 flag 与命令 flag 全部复位、locale 跟随仓库配置),用例之间不共享任何
+// 包级状态;--here 在 runInit 路径(--repo 定根,定位恒成功)无效果,仅裸目录
+// 辅助 runInitBare 才真正被测。
 // stdout 断言(用例六): RunE 的用户输出走 fmt.Println(os.Stdout)而非 cobra
-// out writer,断言须经 os.Pipe 截获且 flagQuiet=false —— cmd.SetOut 看不见它。
+// out writer,须经 runCLIPrinted 截获进程 stdout —— cmd.SetOut 看不见它。
 package cli
 
 import (
 	"bytes"
 	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,86 +36,20 @@ import (
 	afs "github.com/aoci-spec/aoci-code/internal/fs"
 )
 
-// runInit 以 flagRepo 覆盖定根执行 `aoci init`。
-// args 必须显式含 --agent 与 --hooks 取值(见文件头测试工程纪律)。
+// runInit 执行一次安静的 `aoci init`,返回两路输出与按退出码构造的错误。
+// 每次调用都从默认 flag 出发,显式传入的 --agent/--hooks 只是在陈述被测用例。
 func runInit(t *testing.T, root string, args ...string) (string, error) {
 	t.Helper()
-	for _, want := range []string{"--agent", "--hooks"} {
-		found := false
-		for _, a := range args {
-			if strings.HasPrefix(a, want) {
-				found = true
-			}
-		}
-		if !found {
-			t.Fatalf("用例必须显式传 %s 取值(包级 flag 闭包会跨执行残留)", want)
-		}
-	}
-
-	oldRepo, oldQuiet := flagRepo, flagQuiet
-	flagRepo, flagQuiet = root, true
-	t.Cleanup(func() { flagRepo, flagQuiet = oldRepo, oldQuiet })
-
-	cmd := findRegisteredCommand(t, "init")
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	cmd.SetArgs(args)
-	parent := cmd.Parent()
-	if parent != nil {
-		parent.RemoveCommand(cmd)
-		defer parent.AddCommand(cmd)
-	}
-	err := cmd.Execute()
-	return out.String(), err
+	stdout, stderr, code := runCLI(t, root, append([]string{"--quiet", "init"}, args...)...)
+	return stdout + stderr, exitError(stderr, code)
 }
 
-// runInitBare 在裸目录(flagRepo 置空 + Chdir)执行 init,走真实定位链(P-04 被测面)。
-// args 必须显式含 --agent/--hooks/--here 三者取值(闭包残留纪律)。
+// runInitBare 在裸目录(不传 --repo + Chdir)执行 init,走真实定位链(P-04 被测面)。
 func runInitBare(t *testing.T, dir string, args ...string) (string, error) {
 	t.Helper()
-	for _, want := range []string{"--agent", "--hooks", "--here"} {
-		found := false
-		for _, a := range args {
-			if strings.HasPrefix(a, want) {
-				found = true
-			}
-		}
-		if !found {
-			t.Fatalf("裸目录用例必须显式传 %s 取值(包级 flag 闭包会跨执行残留)", want)
-		}
-	}
-
-	oldWd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	oldRepo, oldQuiet := flagRepo, flagQuiet
-	flagRepo, flagQuiet = "", true
-	t.Cleanup(func() {
-		_ = os.Chdir(oldWd)
-		flagRepo, flagQuiet = oldRepo, oldQuiet
-	})
-
-	cmd := findRegisteredCommand(t, "init")
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	cmd.SetArgs(args)
-	parent := cmd.Parent()
-	if parent != nil {
-		parent.RemoveCommand(cmd)
-		defer parent.AddCommand(cmd)
-	}
-	execErr := cmd.Execute()
-	return out.String(), execErr
+	t.Chdir(dir)
+	stdout, stderr, code := runCLIBare(t, append([]string{"--quiet", "init"}, args...)...)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 // seedBaseline 以给定相对路径集的当前磁盘指纹建立基线(测试内的 scan 等价件,
@@ -379,7 +310,8 @@ func TestInitBareDirRequiresHere(t *testing.T) {
 // 且零写入(校验置于一切写入之前,不留半初始化状态)。
 func TestInitInvalidAgentRejected(t *testing.T) {
 	root := t.TempDir()
-	_, err := runInit(t, root, "--agent=codx", "--hooks=false")
+	// The refusal is asserted in zh-CN wording, so the invocation selects it.
+	_, err := runInit(t, root, "--agent=codx", "--hooks=false", "--locale=zh-CN")
 	if err == nil {
 		t.Fatal("拼错的 --agent 值应硬拒")
 	}
@@ -400,39 +332,12 @@ func TestInitInvalidAgentRejected(t *testing.T) {
 func TestInitNewRepositoryOutputOrder(t *testing.T) {
 	root := t.TempDir()
 
-	oldRepo, oldQuiet := flagRepo, flagQuiet
-	flagRepo, flagQuiet = root, false
-	t.Cleanup(func() { flagRepo, flagQuiet = oldRepo, oldQuiet })
-
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldStdout := os.Stdout
-	os.Stdout = writer
-	t.Cleanup(func() { os.Stdout = oldStdout })
-
-	cmd := findRegisteredCommand(t, "init")
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-	cmd.SetArgs([]string{"--agent=", "--hooks=false", "--here=false"})
-	execErr := cmd.Execute()
-	if closeErr := writer.Close(); closeErr != nil {
-		t.Fatal(closeErr)
-	}
-	os.Stdout = oldStdout
-	data, readErr := io.ReadAll(reader)
-	if closeErr := reader.Close(); closeErr != nil {
-		t.Fatal(closeErr)
-	}
-	if readErr != nil {
-		t.Fatal(readErr)
-	}
-	if execErr != nil {
-		t.Fatalf("init失败: %v", execErr)
+	// The order is asserted on zh-CN lines, so the invocation selects them.
+	output, _, stderr, code := runCLIPrinted(t, root, "init", "--agent=", "--hooks=false", "--here=false", "--locale=zh-CN")
+	if code != ExitOK {
+		t.Fatalf("init失败: exit %d\n%s", code, stderr)
 	}
 
-	output := string(data)
 	gitBoundary := strings.Index(output, ".aoci/.gitignore 已生成")
 	automation := strings.Index(output, "automation.mode 已设为 auto")
 	if gitBoundary < 0 || automation < 0 || gitBoundary > automation {
@@ -442,39 +347,16 @@ func TestInitNewRepositoryOutputOrder(t *testing.T) {
 
 // TestInitCodexHooksNotice hooks 支持边界(P-04 防呆三): codex+--hooks 必须
 // 真实写入压缩提示与压缩后重载 hook,不得再静默吞参。
-// 输出走 fmt.Println(os.Stdout),须 os.Pipe 截获且 flagQuiet=false;
-// 本用例置于文件末尾: --hooks 残留 true 不再影响后续 init 用例(同文件内无后继)。
+// 输出走 fmt.Println(os.Stdout),须经 runCLIPrinted 截获进程 stdout。
 func TestInitCodexHooksNotice(t *testing.T) {
 	root := t.TempDir()
 
-	oldRepo, oldQuiet := flagRepo, flagQuiet
-	flagRepo, flagQuiet = root, false
-	t.Cleanup(func() { flagRepo, flagQuiet = oldRepo, oldQuiet })
-
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
+	// The notice is asserted in zh-CN wording, so the invocation selects it.
+	data, _, stderr, code := runCLIPrinted(t, root, "init", "--agent=codex", "--hooks", "--here=false", "--locale=zh-CN")
+	if code != ExitOK {
+		t.Fatalf("init --agent=codex --hooks 应成功安装压缩接入: exit %d\n%s", code, stderr)
 	}
-	oldStdout := os.Stdout
-	os.Stdout = w
-
-	cmd := findRegisteredCommand(t, "init")
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-	cmd.SetArgs([]string{"--agent=codex", "--hooks", "--here=false"})
-	execErr := cmd.Execute()
-
-	w.Close()
-	os.Stdout = oldStdout
-	data, rerr := io.ReadAll(r)
-	r.Close()
-	if rerr != nil {
-		t.Fatal(rerr)
-	}
-	if execErr != nil {
-		t.Fatalf("init --agent=codex --hooks 应成功安装压缩接入: %v", execErr)
-	}
-	if strings.Contains(string(data), "已忽略") {
+	if strings.Contains(data, "已忽略") {
 		t.Fatalf("codex+--hooks 不得再静默忽略: %s", data)
 	}
 	configData, readErr := os.ReadFile(filepath.Join(root, ".codex", "config.toml"))

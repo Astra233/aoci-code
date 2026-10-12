@@ -42,18 +42,16 @@ func capturePrompt(t *testing.T) *bytes.Buffer {
 // credential must not reach stdout" is exactly what a merged buffer cannot say.
 func runScopeSplit(t *testing.T, root string, stdin io.Reader, quiet bool, args ...string) (stdout, stderr *bytes.Buffer, err error) {
 	t.Helper()
-	oldRepo, oldJSON, oldQuiet := flagRepo, flagJSON, flagQuiet
-	flagRepo, flagJSON, flagQuiet = root, true, quiet
-	t.Cleanup(func() { flagRepo, flagJSON, flagQuiet = oldRepo, oldJSON, oldQuiet })
-	command := newScopeCmd()
-	stdout, stderr = &bytes.Buffer{}, &bytes.Buffer{}
-	command.SetOut(stdout)
-	command.SetErr(stderr)
-	if stdin != nil {
-		command.SetIn(stdin)
+	arguments := []string{"--json"}
+	if quiet {
+		arguments = append(arguments, "--quiet")
 	}
-	command.SetArgs(args)
-	return stdout, stderr, command.Execute()
+	arguments = append(append(arguments, "scope"), args...)
+	if stdin == nil {
+		stdin = strings.NewReader("")
+	}
+	out, errOut, code := runCLIStdin(t, root, stdin, arguments...)
+	return bytes.NewBufferString(out), bytes.NewBufferString(errOut), exitError(errOut+out, code)
 }
 
 // reviewPreviewFile produces a preview whose plan demands a human, which is the

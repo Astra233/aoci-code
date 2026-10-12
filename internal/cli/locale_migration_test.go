@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -445,23 +443,13 @@ func TestCheckFailsWhileAnyLocaleManagedSurfaceIsPending(t *testing.T) {
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	flagRepo = root
-	flagJSON = false
-	t.Cleanup(func() { flagRepo, flagJSON = oldRepo, oldJSON })
-	command := newCheckCmd()
-	var outputBuffer bytes.Buffer
-	command.SetOut(&outputBuffer)
-	command.SetErr(&outputBuffer)
-	checkErr := runCheckCommand(command, nil)
-	output := outputBuffer.String()
-	if checkErr == nil {
+	stdout, stderr, code := runCLI(t, root, "check")
+	output := stdout + stderr
+	if code == ExitOK {
 		t.Fatalf("Check passed with pending Locale managed surfaces:\n%s", output)
 	}
-	var exitErr *ExitError
-	if !errors.As(checkErr, &exitErr) || exitErr.Code != ExitDrift {
-		t.Fatalf("Check returned the wrong failure: %T %v", checkErr, checkErr)
+	if code != ExitDrift {
+		t.Fatalf("Check returned the wrong failure: exit %d\n%s", code, output)
 	}
 	if !strings.Contains(output, "Locale") {
 		t.Fatalf("Check did not identify the Locale migration blocker:\n%s", output)

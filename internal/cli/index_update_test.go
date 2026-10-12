@@ -9,7 +9,6 @@
 package cli
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,17 +68,8 @@ func buildUpdateRepo(t *testing.T) string {
 // runUpdateDry 执行 `update --dry-run`。
 func runUpdateDry(t *testing.T, root string) (string, error) {
 	t.Helper()
-	oldRepo := flagRepo
-	flagRepo = root
-	t.Cleanup(func() { flagRepo = oldRepo })
-
-	cmd := newIndexUpdateCmd()
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"--dry-run"})
-	err := cmd.Execute()
-	return out.String(), err
+	stdout, stderr, code := runCLI(t, root, "index", "update", "--dry-run")
+	return stdout + stderr, exitError(stderr, code)
 }
 
 // assertUpdateLedger 断言最近的 index_update 事件 PathsCount。

@@ -35,7 +35,7 @@ func TestHeaderApplyJSONReportsBackupBaselineAndAudit(
 		t,
 		root,
 		runID,
-		newHeaderApplyJSONCmd(),
+		applyKindHeader,
 	)
 	if err != nil {
 		t.Fatalf(
@@ -168,7 +168,7 @@ func TestCurationApplyJSONReportsDecisionCounts(
 		t,
 		root,
 		stageResult.RunID,
-		newAgentCurationApplyJSONCmd(),
+		applyKindCuration,
 	)
 	if err != nil {
 		t.Fatalf(

@@ -104,6 +104,7 @@ func TestMCPWriteReceiptsKeepReadOnlyCommandsOpenAndGuideNamesTheClosure(t *test
 // Every receipt kind, and a kind nobody wrote, resolves to a closure that
 // names the file; a missing catalogue key would surface as a text-asset error.
 func TestRecoveryPendingActionNamesEveryKind(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{"database-bootstrap", "bootstrap", "migration", "reversal", "scope", "remove", "entries", "header", "unknown", "never-written"} {
 		action := recoveryPendingAction(kind, kind+"-x.json")
 		if !strings.Contains(action, kind+"-x.json") || strings.Contains(action, "text_asset_error") {

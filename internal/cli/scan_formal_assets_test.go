@@ -6,50 +6,25 @@
 package cli
 
 import (
-	"bytes"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/aoci-spec/aoci-code/internal/testkit"
 )
 
+// runScan runs a quiet `aoci scan` against root and returns both streams with
+// the exit code as an error.
 func runScan(t *testing.T, root string, args ...string) (string, error) {
 	t.Helper()
-	oldRepo, oldQuiet, oldJSON := flagRepo, flagQuiet, flagJSON
-	flagRepo, flagQuiet, flagJSON = root, true, false
-	t.Cleanup(func() { flagRepo, flagQuiet, flagJSON = oldRepo, oldQuiet, oldJSON })
-
-	cmd := findRegisteredCommand(t, "scan")
-	cmd.SilenceUsage = true
-	cmd.SilenceErrors = true
-	// The registered command is package-level, so a boolean flag set by an
-	// earlier case survives into this one; runInit guards the same hazard.
-	for _, name := range []string{"dry-run", "force"} {
-		if err := cmd.Flags().Set(name, "false"); err != nil {
-			t.Fatalf("reset --%s: %v", name, err)
-		}
-	}
-	var output bytes.Buffer
-	cmd.SetOut(&output)
-	cmd.SetErr(&output)
-	cmd.SetArgs(args)
-	err := cmd.Execute()
-	return output.String(), err
+	stdout, stderr, code := runCLI(t, root, append([]string{"--quiet", "scan"}, args...)...)
+	return stdout + stderr, exitError(stderr, code)
 }
 
 func commitFixture(t *testing.T, root string) {
 	t.Helper()
-	for _, args := range [][]string{{"add", "-A"}, {"commit", "-qm", "fixture"}} {
-		command := exec.Command("git", args...)
-		command.Dir = root
-		command.Env = append(os.Environ(),
-			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com",
-			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com")
-		if out, err := command.CombinedOutput(); err != nil {
-			t.Skipf("git unavailable: %v %s", err, out)
-		}
-	}
+	testkit.Commit(t, root, "fixture")
 }
 
 func hideFromGit(t *testing.T, root string, paths ...string) {

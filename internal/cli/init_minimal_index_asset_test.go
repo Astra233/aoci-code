@@ -17,7 +17,6 @@ import (
 	"github.com/aoci-spec/aoci-code/internal/index"
 	"github.com/aoci-spec/aoci-code/internal/machinecontract"
 	"github.com/aoci-spec/aoci-code/textassets"
-	"github.com/spf13/cobra"
 )
 
 func readMinimalIndexGoldenHash(
@@ -218,15 +217,8 @@ func TestInitMaterializesVolumeFirstAssetsWithoutDatabaseCognition(
 	if err != nil {
 		t.Fatal(err)
 	}
-	oldJSON := flagJSON
-	flagJSON = true
-	t.Cleanup(func() { flagJSON = oldJSON })
 	var guideOutput bytes.Buffer
-	guideCommand := &cobra.Command{}
-	guideCommand.SetOut(&guideOutput)
-	if err := writeVolumeAgentGuide(guideCommand, root, cfg, set, "codex"); err != nil {
-		t.Fatal(err)
-	}
+	guideOutput.WriteString(mustCLI(t, root, "--json", "index", "agent", "guide", "--agent", "codex"))
 	for _, want := range []string{`"stage": "authoring_required"`, "index header show",
 		`"authoring_meta": "#AOCI-META-VOLUME: 1`, "EG7T", "code:path/to/file", "database://source/namespace/table",
 		machinecontract.NumericText().SQuotaDefaultCompact, "call no-argument aoci_maintain", "remaining nonzero",
@@ -284,23 +276,8 @@ func TestVolumeGuideCompletesOldFormalMetaContractWithoutRewritingMeta(t *testin
 	if code := executeCLI([]string{"--repo", root, "--quiet", "scan"}, &scanOut, &scanErr); code != ExitOK {
 		t.Fatalf("old Meta scan failed: code=%d stdout=%s stderr=%s", code, scanOut.String(), scanErr.String())
 	}
-	cfg, err := config.Load(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	set, err := cognition.Load(root, cfg.IndexPath)
-	if err != nil {
-		t.Fatal(err)
-	}
 	var output bytes.Buffer
-	command := &cobra.Command{}
-	command.SetOut(&output)
-	oldJSON := flagJSON
-	flagJSON = true
-	t.Cleanup(func() { flagJSON = oldJSON })
-	if err := writeVolumeAgentGuide(command, root, cfg, set, "codex"); err != nil {
-		t.Fatal(err)
-	}
+	output.WriteString(mustCLI(t, root, "--json", "index", "agent", "guide", "--agent", "codex"))
 	var guide volumeAgentGuide
 	if err := json.Unmarshal(output.Bytes(), &guide); err != nil {
 		t.Fatal(err)
@@ -372,15 +349,8 @@ func TestVolumeGuideRoutesUnusableMetaWithoutCodeReplan(t *testing.T) {
 	if stop == nil {
 		t.Fatalf("Guide did not classify the Meta failure: %v", loadErr)
 	}
-	oldJSON := flagJSON
-	flagJSON = true
-	t.Cleanup(func() { flagJSON = oldJSON })
 	var output bytes.Buffer
-	command := &cobra.Command{}
-	command.SetOut(&output)
-	if err := writeVolumeMetaBlockedGuide(command, "codex", stop); err != nil {
-		t.Fatal(err)
-	}
+	output.WriteString(mustCLI(t, root, "--json", "index", "agent", "guide", "--agent", "codex"))
 	for _, want := range []string{`"stage": "blocked"`, `"next_action": "repair_meta_tag_dictionary"`,
 		`"executable_targets": 0`, `"affected_asset": "aoci.meta.txt"`, `"field": "tag_dictionary"`,
 		`"rule_code": "meta_tag_dictionary_invalid"`} {

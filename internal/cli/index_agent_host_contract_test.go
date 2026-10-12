@@ -375,38 +375,14 @@ func TestAgentGuideCommandJSONUsesBoundCommands(
 		true,
 	)
 
-	oldRepo := flagRepo
-	oldJSON := flagJSON
-	flagRepo = root
-	flagJSON = true
-
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-		flagJSON = oldJSON
-	})
-
-	command := newIndexAgentGuideCmd()
-	command.SilenceUsage = true
-	command.SilenceErrors = true
-	command.SetArgs(
-		[]string{
-			"--agent",
-			"codex",
-		},
-	)
-
+	stdout, stderr, code := runCLI(t, root, "--json", "index", "agent", "guide", "--agent", "codex")
 	var output bytes.Buffer
-	command.SetOut(
-		&output,
-	)
-	command.SetErr(
-		&output,
-	)
+	output.WriteString(stdout + stderr)
 
-	if err := command.Execute(); err != nil {
+	if code != ExitOK {
 		t.Fatalf(
-			"Guide命令失败: %v\n%s",
-			err,
+			"Guide命令失败: exit %d\n%s",
+			code,
 			output.String(),
 		)
 	}

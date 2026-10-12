@@ -3,9 +3,8 @@
 // + loadIndexForCLI 的 RelPath 填充防线(entries diff 假新增缺陷防再犯,2026-07-10)
 // 索引条目: index_test.go(待补录)
 //
-// 测试方式: 直接调 newHeaderApplyCmd().RunE,经 flagRepo 全局覆盖定根
-// (root.go 的 resolveRepoRoot 以 --repo 覆盖为最高优先,仅要求目录存在);
-// 共享全局 flagRepo 故本文件用例不并行。
+// 测试方式: 经 runCLI 执行 `aoci --repo <root> index header apply <run>`,
+// 每次调用都是一次完整的进程级调用语义(flag 复位、locale 跟随仓库配置)。
 // safety 禁区词命中用例暂缺(词表内容不在本测试认知内,不臆造样本)—— 挂账。
 package cli
 
@@ -41,18 +40,11 @@ func buildApplyRepo(t *testing.T, draftText string) (root, runID string) {
 	return root, runID
 }
 
-// runApply 以 flagRepo 覆盖定根执行 apply,返回 RunE 原始错误
+// runApply 执行 header apply,把退出码按 *ExitError 返回。
 func runApply(t *testing.T, root, runID string) error {
 	t.Helper()
-	old := flagRepo
-	flagRepo = root
-	t.Cleanup(func() { flagRepo = old })
-
-	cmd := newHeaderApplyCmd()
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	return cmd.RunE(cmd, []string{runID})
+	_, stderr, code := runCLI(t, root, "index", "header", "apply", runID)
+	return exitError(stderr, code)
 }
 
 // readIndex 读回索引全文

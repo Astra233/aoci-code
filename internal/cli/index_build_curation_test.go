@@ -6,7 +6,6 @@
 package cli
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,26 +74,12 @@ func TestIndexBuildMissingAllCurationReturnsBeforeAI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	oldRepo, oldJSON, oldQuiet := flagRepo, flagJSON, flagQuiet
-	flagRepo, flagJSON, flagQuiet = root, false, false
-	t.Cleanup(func() {
-		flagRepo, flagJSON, flagQuiet = oldRepo, oldJSON, oldQuiet
-	})
-
-	cmd := newIndexBuildCmd()
-	if err := cmd.Flags().Set("missing", "true"); err != nil {
-		t.Fatal(err)
+	stdout, stderr, code := runCLI(t, root, "index", "build", "--missing")
+	if code != ExitOK {
+		t.Fatalf("全部缺口被策展排除时应在 AI 前成功返回,实得: exit %d\n%s%s", code, stdout, stderr)
 	}
 
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-
-	if err := cmd.RunE(cmd, nil); err != nil {
-		t.Fatalf("全部缺口被策展排除时应在 AI 前成功返回,实得: %v", err)
-	}
-
-	got := out.String()
+	got := stdout + stderr
 	if !strings.Contains(got, "策展排除 1 条未进入 AI 起草队列") {
 		t.Fatalf("输出应明确显示策展跳过计数:\n%s", got)
 	}

@@ -101,31 +101,13 @@ func TestIndexBuildMissingGeneratesIncludedEmptyFile(
 		t.Fatal(err)
 	}
 
-	oldRepo := flagRepo
-	flagRepo = root
-	t.Cleanup(func() {
-		flagRepo = oldRepo
-	})
-
-	command := newIndexBuildCmd()
-	if err := command.Flags().Set(
-		"missing",
-		"true",
-	); err != nil {
-		t.Fatal(err)
-	}
-
+	stdout, stderr, code := runCLI(t, root, "index", "build", "--missing")
 	var output bytes.Buffer
-	command.SetOut(&output)
-	command.SetErr(&output)
-
-	if err := command.RunE(
-		command,
-		nil,
-	); err != nil {
+	output.WriteString(stdout + stderr)
+	if code != ExitOK {
 		t.Fatalf(
-			"build有效include失败: %v\n%s",
-			err,
+			"build有效include失败: exit %d\n%s",
+			code,
 			output.String(),
 		)
 	}

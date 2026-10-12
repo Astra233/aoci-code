@@ -215,8 +215,14 @@ func refreshCommandLocalization(root *cobra.Command) {
 		if render, exists := commandLongMessages[path]; exists {
 			command.Long = render()
 		}
+		// Cobra assembles LocalNonPersistentFlags from scratch on every call,
+		// so both sets are taken once per command rather than once per name;
+		// the *Flag values they hold are the command's own, so the rebound
+		// Usage lands on the flag the command renders.
+		local := command.LocalNonPersistentFlags()
+		persistent := command.PersistentFlags()
 		for _, flagName := range localizedFlagNames {
-			if flag := command.LocalNonPersistentFlags().Lookup(flagName); flag != nil {
+			if flag := local.Lookup(flagName); flag != nil {
 				localized, found, err := textassets.RelocalizeMessageExact(textassets.ActiveLocale(), flag.Usage)
 				if err != nil {
 					flag.Usage = fmt.Sprintf("[text asset flag localization failed: %v]", err)
@@ -224,7 +230,7 @@ func refreshCommandLocalization(root *cobra.Command) {
 					flag.Usage = localized
 				}
 			}
-			if flag := command.PersistentFlags().Lookup(flagName); flag != nil {
+			if flag := persistent.Lookup(flagName); flag != nil {
 				localized, found, err := textassets.RelocalizeMessageExact(textassets.ActiveLocale(), flag.Usage)
 				if err != nil {
 					flag.Usage = fmt.Sprintf("[text asset flag localization failed: %v]", err)
