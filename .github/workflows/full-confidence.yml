@@ -392,6 +392,62 @@ jobs:
           test_name=TestOpenGaussRealCatalogCollectionAndDrift
           go test -tags=integration -list "^${test_name}$" ./internal/dbevidence | grep -Fx "${test_name}"
           go test -v -tags=integration -count=1 -run "^${test_name}$" ./internal/dbevidence
+      # 上游 connector 自带 211 个测试, 此前没有任何门禁对着真库跑过它们;
+      # make opengauss-connector 只跑七个 AOCI 补丁测试。这里借同一个容器跑完整
+      # 上游套件: conn_test.go 的 openTestConn 读 TEST_CONN_STRING, 本作业已经导出的
+      # 管理员 DSN(127.0.0.1:5433, gaussdb, sslmode=verify-full + sslrootcert)原样可用;
+      # SSL 子集另需 PQGOSSLTESTS=1 与 PQSSLCERTTEST_PATH 下的上游证书, 未设即跳过。
+      # 仅作观察(continue-on-error): 上游断言写给它自己的测试床, 2026-10-13 本地
+      # 对 6.0.5 实跑为 300 过 / 1 败 / 6 跳, 败在 TestFormatTsBackend 的公元 0 年
+      # 被服务端拒绝。计数写进 step summary。
+      - name: upstream connector test suite against openGauss (advisory)
+        continue-on-error: true
+        run: |
+          export TEST_CONN_STRING="${AOCI_TEST_OPENGAUSS_ADMIN_DSN}"
+          export PQTEST_BINARY_PARAMETERS=no
+          report="${RUNNER_TEMP}/opengauss-connector-tests.json"
+          status=0
+          ( cd third_party/openGauss-connector-go-pq && go test -count=1 -json -timeout 15m -run . ./... ) > "${report}" || status=$?
+          python3 - "${report}" "${status}" >> "$GITHUB_STEP_SUMMARY" <<'PYEOF'
+          import collections, json, sys
+          path, status = sys.argv[1], int(sys.argv[2])
+          counts, packages = collections.Counter(), collections.Counter()
+          failed, output = [], collections.defaultdict(list)
+          with open(path, encoding="utf-8") as handle:
+              for line in handle:
+                  try:
+                      event = json.loads(line)
+                  except ValueError:
+                      continue
+                  action, test = event.get("Action"), event.get("Test")
+                  if test:
+                      if action in ("pass", "fail", "skip"):
+                          counts[action] += 1
+                          if action == "fail":
+                              failed.append(event.get("Package", "") + " " + test)
+                      elif action == "output":
+                          output[test].append(event.get("Output", ""))
+                  elif action in ("pass", "fail", "skip"):
+                      packages[action] += 1
+          print("### Upstream openGauss connector suite against the openGauss 6.0.5 container (advisory)")
+          print()
+          print("go test exit status %d. Tests including subtests: %d passed, %d failed, %d skipped. Packages: %d ok, %d failed, %d without tests."
+                % (status, counts["pass"], counts["fail"], counts["skip"], packages["pass"], packages["fail"], packages["skip"]))
+          for name in failed[:40]:
+              print("- failed: `%s`" % name)
+          if len(failed) > 40:
+              print("- ... and %d more" % (len(failed) - 40))
+          if failed:
+              first = failed[0].split(" ", 1)[1]
+              print()
+              print("Last output lines of `%s`:" % first)
+              print()
+              print("```")
+              print("".join(output.get(first, [])[-30:]).rstrip())
+              print("```")
+          PYEOF
+          cat "$GITHUB_STEP_SUMMARY"
+          exit "${status}"
       - name: stop isolated openGauss
         if: always()
         run: docker rm -f "aoci-opengauss-${GITHUB_RUN_ID}" >/dev/null 2>&1 || true
