@@ -45,6 +45,13 @@ func NormalizeRelPath(raw string) (string, error) {
 	if clean == ".." || strings.HasPrefix(clean, "../") {
 		return "", errors.New("拒绝 .. 路径逃逸: 路径必须落在仓库根之下")
 	}
+	// Clean can expose a drive spelling the raw check did not see: "./C:/x"
+	// cleans to "C:/x", which is absolute on Windows and refused when given
+	// directly. A rooted "/" cannot appear here, since Clean keeps a relative
+	// path relative.
+	if len(clean) >= 2 && clean[1] == ':' {
+		return "", errors.New("拒绝 Windows 盘符路径: 只接受仓库相对路径")
+	}
 
 	if trailingSlash {
 		clean += "/"
