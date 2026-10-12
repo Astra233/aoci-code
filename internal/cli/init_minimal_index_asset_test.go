@@ -213,8 +213,8 @@ func TestInitMaterializesVolumeFirstAssetsWithoutDatabaseCognition(
 	if err != nil {
 		t.Fatal(err)
 	}
-	set, err = cognition.Load(root, cfg.IndexPath)
-	if err != nil {
+	// The first scan must leave the Volume-first layout loadable as a whole.
+	if _, err := cognition.Load(root, cfg.IndexPath); err != nil {
 		t.Fatal(err)
 	}
 	var guideOutput bytes.Buffer
