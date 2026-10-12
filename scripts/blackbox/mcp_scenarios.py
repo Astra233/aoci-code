@@ -2230,12 +2230,16 @@ def group_h():
            f"rc={rc},{rcc} | {out[:120]!r}")
 
     # H8: strict blocks only what is stale: a current sibling injects, and a
-    # CRLF-only rewrite is the tolerance the team configured, not drift.
+    # line-ending-only rewrite is the tolerance the team configured, not drift.
+    # The fixture is written in text mode, so on Windows it already carries
+    # CRLF; flip whichever ending the file has, which is the same change in
+    # both directions, instead of turning CRLF into CR CR LF.
     rc1, out1, _ = hook(fx, "--agent", "claude", "--stdin-json", stdin=claude("pkg/f002.go"))
     with open(os.path.join(fx, "pkg", "f003.go"), "rb") as fh:
         body = fh.read()
+    flipped = body.replace(b"\r\n", b"\n") if b"\r\n" in body else body.replace(b"\n", b"\r\n")
     with open(os.path.join(fx, "pkg", "f003.go"), "wb") as fh:
-        fh.write(body.replace(b"\n", b"\r\n"))
+        fh.write(flipped)
     rc2, out2, _ = hook(fx, "--agent", "claude", "--stdin-json", stdin=claude("pkg/f003.go"))
     decisions += 2
     ok = rc1 == 0 and entry2 in out1 and rc2 == 0 and entry3 in out2 and "STALE" not in out1 + out2
