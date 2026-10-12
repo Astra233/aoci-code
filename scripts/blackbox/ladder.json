@@ -14,8 +14,8 @@
    ],
    "last_verified": {
     "version": "v0.1.0-rc20",
-    "date": "2026-10-10",
-    "evidence": ".aoci/dev-tools/make-fast-rc20-go1269.txt"
+    "date": "2026-10-13",
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
    }
   },
   {
@@ -32,8 +32,8 @@
    ],
    "last_verified": {
     "version": "v0.1.0-rc20",
-    "date": "2026-10-10",
-    "evidence": ".aoci/dev-tools/make-verify-rc20-go1269.txt"
+    "date": "2026-10-13",
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
    }
   },
   {
@@ -51,8 +51,8 @@
    ],
    "last_verified": {
     "version": "v0.1.0-rc20",
-    "date": "2026-10-10",
-    "evidence": ".aoci/dev-tools/make-verify-rc20-go1269.txt RESULT: 46 passed"
+    "date": "2026-10-13",
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
    }
   },
   {
@@ -71,8 +71,8 @@
    ],
    "last_verified": {
     "version": "v0.1.0-rc20",
-    "date": "2026-10-10",
-    "evidence": "SCENARIOS: 65 PASS"
+    "date": "2026-10-13",
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
    }
   },
   {
@@ -88,8 +88,8 @@
    ],
    "last_verified": {
     "version": "v0.1.0-rc20",
-    "date": "2026-10-10",
-    "evidence": "LIFECYCLE PASS 73 CHAR 2"
+    "date": "2026-10-13",
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
    }
   },
   {
@@ -106,8 +106,8 @@
    ],
    "last_verified": {
     "version": "v0.1.0-rc20",
-    "date": "2026-10-10",
-    "evidence": "LIFECYCLE PASS 73 CHAR 2 (database track included)"
+    "date": "2026-10-13",
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
    }
   },
   {
@@ -152,8 +152,8 @@
    ],
    "last_verified": {
     "version": "v0.1.0-rc20",
-    "date": "2026-10-10",
-    "evidence": "full-confidence 37961215209 RESULT: 1440 passed"
+    "date": "2026-10-13",
+    "evidence": "full-confidence 38294486403 (push, --recent 3: 240/240) and local 20-version run 1600/1600 on the axis branch"
    }
   },
   {
@@ -282,8 +282,8 @@
    ],
    "last_verified": {
     "version": "v0.1.0-rc20",
-    "date": "2026-10-10",
-    "evidence": ".aoci/dev-tools/make-verify-rc20-go1269.txt"
+    "date": "2026-10-13",
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
    }
   },
   {
@@ -299,8 +299,8 @@
    ],
    "last_verified": {
     "version": "v0.1.0-rc20",
-    "date": "2026-10-10",
-    "evidence": "full-confidence 37961215209 native-lifecycle x3 success"
+    "date": "2026-10-13",
+    "evidence": "full-confidence 38294486403 native-lifecycle x3 and windows-scenarios green"
    }
   },
   {
@@ -315,8 +315,8 @@
    ],
    "last_verified": {
     "version": "v0.1.0-rc20",
-    "date": "2026-10-10",
-    "evidence": "safety: clean, 439 files"
+    "date": "2026-10-13",
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
    }
   }
  ]
