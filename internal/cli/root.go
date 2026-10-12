@@ -276,7 +276,25 @@ func executeCLI(
 	stdout,
 	stderr io.Writer,
 ) int {
+	return executeCLIWithInput(args, os.Stdin, stdout, stderr)
+}
+
+// executeCLIWithInput is executeCLI with an explicit stdin. The process entry
+// point passes os.Stdin, which is what Cobra falls back to anyway; an
+// in-process caller can hand a command the request it would otherwise read
+// from the process stdin.
+func executeCLIWithInput(
+	args []string,
+	stdin io.Reader,
+	stdout,
+	stderr io.Writer,
+) int {
 	resetRootFlags()
+	// The reset runs again on the way out: a real process exits here, but the
+	// library entry point is reused by tests and embedders, and --repo pointing
+	// at a directory a finished test already deleted must not leak into the
+	// next direct command execution.
+	defer resetRootFlags()
 	previousLocale := textassets.ActiveLocale()
 	defer func() { _ = textassets.SetActiveLocale(previousLocale) }()
 	if err := activateInvocationLocale(args); err != nil {
@@ -313,6 +331,9 @@ func executeCLI(
 		root.SetArgs(
 			args,
 		)
+		root.SetIn(
+			stdin,
+		)
 		root.SetOut(
 			stdout,
 		)
@@ -340,6 +361,9 @@ func executeCLI(
 
 	root.SetArgs(
 		args,
+	)
+	root.SetIn(
+		stdin,
 	)
 	root.SetOut(
 		&stdoutBuffer,
