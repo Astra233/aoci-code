@@ -51,6 +51,7 @@ func FuzzParse(f *testing.F) {
 		"=== note /repo/ (annotated) ===\nn.go[IM7S]: F:n | R:- | A:- | S:-\n",
 		"===/a/ /b/===\nm.go[IM7S]: F:m | R:- | A:- | S:-\n",
 		"#S配额: C9-8≤100 C3-1≤30\n===/repo/===\nq.go[IM9S]: F:q | R:- | A:- | S:" + strings.Repeat("长", 120) + "\n",
+		"===/repo/===\n\v[T.T.5.T]: F:vertical tab name | R:- | A:- | S:-\n\u00a0[T.T.5.T]: F:no-break space name | R:- | A:- | S:-\n",
 	} {
 		f.Add(seed)
 	}
@@ -196,6 +197,7 @@ func FuzzValidateEntryLine(f *testing.F) {
 		{"a/b.go", "b.go[IM3S]: F:q | R:- | A:- | S:short", "# S配额: C9-8≤100字 C3-1≤30字\n"},
 		{"a/b.go", "b.go[IM3S]: F:q | R:- | A:- | S:short", "#S配额(字数上限)： C9-C8≤100 C3-C1≤30\n"},
 		{"a\\b.go", "b.go[X.Y.5.T]: F:- | R:- | A:- | S:-\r", "#S配额: nonsense\n"},
+		{"a/b.go", "\v[X.Y.5.T]: F:- | R:- | A:- | S:-", ""},
 		{"", "", ""},
 	} {
 		f.Add(seed[0], seed[1], seed[2])

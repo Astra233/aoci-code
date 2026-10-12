@@ -68,11 +68,19 @@ var (
 )
 
 // matchEntryLine is the one entry-line lexer: legacy first, extended second.
+// A match whose name trims to nothing is not an Entry: RE2's \s is ASCII
+// while TrimSpace is Unicode, so a line beginning with a vertical tab or a
+// no-break space before "[" lexes as an Entry whose file name is empty and
+// whose RelPath would collapse to its section directory.
 func matchEntryLine(line string) []string {
-	if m := consistencyEntryRe.FindStringSubmatch(line); m != nil {
-		return m
+	m := consistencyEntryRe.FindStringSubmatch(line)
+	if m == nil {
+		m = extendedEntryRe.FindStringSubmatch(line)
 	}
-	return extendedEntryRe.FindStringSubmatch(line)
+	if m != nil && strings.TrimSpace(m[1]) == "" {
+		return nil
+	}
+	return m
 }
 
 // EntryTagSpan locates the tag of an Entry line for every consumer that needs it
