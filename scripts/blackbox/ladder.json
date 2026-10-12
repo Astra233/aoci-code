@@ -246,7 +246,11 @@
    "runs_in": [
     "full-confidence.yml"
    ],
-   "last_verified": null
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-13",
+    "evidence": "make longrun-refresh on main: overall_passed=true (threshold 29/30 and compaction experiments)"
+   }
   },
   {
    "id": "bench-compare",
@@ -259,7 +263,11 @@
    "runs_in": [
     "full-confidence.yml"
    ],
-   "last_verified": null
+   "last_verified": {
+    "version": "v0.1.0-rc20",
+    "date": "2026-10-13",
+    "evidence": "scripts/bench-compare.py baseline generated on this machine 2026-10-13 (38 result names), advisory"
+   }
   },
   {
    "id": "clean-room-smoke",
