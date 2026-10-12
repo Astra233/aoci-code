@@ -10,7 +10,7 @@ with the repository clone (binary Release archives do not include `scripts/`).
 | `mcp_conformance.py` | The MCP wire surface honors its contract: handshake, the nine-tool registry, input schemas, response shapes, error behavior, clean handling of malformed input. Read-only. | python3, git, a built binary | seconds |
 | `mcp_scenarios.py` | Safety under hostile handling: cursor replay/tampering, write-lifecycle rejections, crash injection during Apply, racing writers. Disposable fixture repositories; the host repository is only read. | same as above | minutes |
 | `mcp_lifecycle.py` | Complete lifecycles on three frozen realistic projects: `repo-a` (a TypeScript service) and `repo-b` (a Python + MySQL service) run from `init` through incremental maintenance, database Evidence, drift, re-alignment, and the governance walks (curation probes, post-scan exclusion, and a pending policy edit over a changed source), while `repo-c` (a 453-file layered service) additionally exercises multi-batch authoring at the real machine batch limit, including a relation cycle that spans every batch. An optional model track drives a real AI agent through the small repositories. | above + Docker for the `database` suite; OpenCode + a model subscription for the model track | minutes; model track depends on the model |
-| `mcp_upgrade.py` | The upgrade axis: a repository built and authored by a *previously released* binary stays governable by the binary under test — no identity moves, no Scope Change is demanded, no formal asset is rewritten. Every release in the CHANGELOG is downloaded, checksum-verified, and probed in nine repository shapes. | above + network access on the first run (binaries are cached) | minutes |
+| `mcp_upgrade.py` | The upgrade axis: a repository built and authored by a *previously released* binary stays governable by the binary under test — no identity moves, no Scope Change is demanded, no formal asset is rewritten. Every release in the CHANGELOG is downloaded, checksum-verified, and probed in ten repository shapes; the tenth turns the axis around, so each release also has to read a repository the binary under test wrote. `--self` runs the same shapes with the binary under test in both roles, before a tag exists. | above + network access on the first run (binaries are cached; `--self` needs none) | minutes |
 
 ## Running
 
@@ -32,12 +32,15 @@ Fault-injection scenarios (65 scenarios, disposable fixtures in a temp dir):
 python3 scripts/blackbox/mcp_scenarios.py
 ```
 
-Upgrade axis (72 checks per released version, over nine repository shapes;
+Upgrade axis (80 checks per released version, over ten repository shapes;
 downloads and checksum-verifies each release once into a gitignored cache):
 
 ```bash
 python3 scripts/blackbox/mcp_upgrade.py
 python3 scripts/blackbox/mcp_upgrade.py --versions v0.1.0-rc6,v0.1.0-rc7
+python3 scripts/blackbox/mcp_upgrade.py --recent 3      # the newest three releases
+python3 scripts/blackbox/mcp_upgrade.py --self          # the binary under test in both roles, no download
+make axis-self                                          # the same, over BUILD_BIN; part of make verify
 ```
 
 The other three suites mint every fixture with the binary under test, so a
@@ -70,7 +73,23 @@ binary under test must read it aligned with no orphan, and its own MCP Maintain
 and update must then re-author a changed file beside it. In `ignoredtree` a
 `node_modules/` of 300 files and an `out/` whose one file a user rule observes
 are both ignored; the composite identity must not move and the observed file
-must stay observed. A run that cannot
+must stay observed. The tenth shape, `downgrade`, turns the axis around: the
+binary under test initializes and authors the fixture, and the released binary
+runs the read-only surface over it (`verify`, `check`, `scope status`, `scope
+explain` on a planted path, `status`), then an MCP Overview and one Maintain.
+Every command must exit with an ordinary code and answer JSON where `--json`
+was asked, the released binary must read the stamped active identity, budget,
+layout and composite identity back unchanged, its Maintain must either reach
+`aligned` or stop on a named machine state (`scope_change_required`, a
+`cognition_*` refusal, or an unsupported layout) and never crash, no formal
+byte may move, and the binary under test must afterwards still verify aligned
+and grow. Which answer a release owes is a floor in the suite: a release from
+v0.1.0-rc20 on shares every preimage the binary under test writes and must
+read the fixture aligned, while every earlier release computes its desired
+policy identity without `exclude_root_dirs` and must answer
+`scope_change_required`, which is what `docs/upgrading.md` promises. A
+candidate that adds a persisted preimage moves that floor, and its release
+notes must say which binary every machine then needs. A run that cannot
 fetch a release fails; pass `--allow-offline` to downgrade that to a skip. One
 exemption is deliberate: the newest CHANGELOG section may precede its GitHub
 release by the one commit the release cut takes, so a 404 for that version
@@ -78,6 +97,25 @@ alone is reported as `CHAR` and left out of the matrix — the gate that must
 pass is the one that creates the release. A 404 for any older version, or any
 other fetch error, still fails, and a matrix the exemption would leave empty
 fails too.
+
+`--self` is the pre-tag step. The moment a candidate is tagged it becomes an
+"old version" for this suite, and a shape premise that was written for the
+releases before it goes stale with no run in between: rc20 moved the artifact
+names to a root list, and `legacydirs` turned red on the first nightly after
+its tag because nothing had run the rc20 binary as a released version before
+the tag existed. Under `--self` the binary under test plays both roles of
+every shape, labelled with the newest `## v...` heading of `CHANGELOG.md` (or
+`candidate` while the top section is Unreleased), and downloads nothing. `make
+axis-self` runs it over `BUILD_BIN`; `make verify` runs it after the three
+other suites, and the release rehearsal runs it over the packaged Linux
+binary. It cannot replace the released matrix: a real older binary is the only
+thing that proves what an older binary does.
+
+`--recent N` runs the newest N releases only. CI layers the matrix by event:
+a push to `main` runs `--recent 3`, so the releases a change can realistically
+meet are proved on every push, and the nightly schedule and a manual dispatch
+run the whole list, which grows with every release and is what keeps the oldest
+preimages honest.
 
 Lifecycle, deterministic track only (no AI involved; `database` pulls
 `mysql:8.4` and needs a working Docker daemon — drop it via `--suites`):
