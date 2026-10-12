@@ -291,7 +291,10 @@ func assessOverviewAttestation(
 	seen := make(map[int]struct{}, len(report.ChallengeAnswers))
 	for answerIndex, answer := range report.ChallengeAnswers {
 		if _, duplicate := seen[answer.Ordinal]; duplicate {
+			// A repeated ordinal is a format fault, not a second recall: scoring
+			// it again let challenge_passed exceed challenge_total.
 			ordered = false
+			continue
 		}
 		seen[answer.Ordinal] = struct{}{}
 		if answerIndex >= len(challenge.Ordinals) || answer.Ordinal != challenge.Ordinals[answerIndex] {
