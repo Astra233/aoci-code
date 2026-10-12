@@ -70,8 +70,23 @@ func openDatabase(driverName, dsn string) (*sql.DB, error) {
 	return openOpenGaussDatabase(dsn, os.Getenv)
 }
 
+// parseOpenGaussDSN is the one first-party entry into the connector's strict
+// parser. The vendored parser panics on a malformed connection string whose
+// quoted value ends in a backslash (parseDSNSettings runs its index past the
+// input and slices it), and third_party is byte-locked to the canonical patch,
+// so the panic becomes a refusal here instead of taking the process down. The
+// message carries no part of the connection string.
+func parseOpenGaussDSN(dsn string) (config *opengauss.Config, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			config, err = nil, fmt.Errorf("opengauss connection string is malformed")
+		}
+	}()
+	return opengauss.ParseConfigStrict(dsn)
+}
+
 func openOpenGaussDatabase(dsn string, _ func(string) string) (*sql.DB, error) {
-	config, err := opengauss.ParseConfigStrict(dsn)
+	config, err := parseOpenGaussDSN(dsn)
 	if err != nil {
 		return nil, err
 	}
