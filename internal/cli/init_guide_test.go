@@ -2,8 +2,6 @@
 package cli
 
 import (
-	"io"
-	"os"
 	"strings"
 	"testing"
 
@@ -136,33 +134,7 @@ func TestInitOutputPointsToConcreteCodexGuide(
 ) {
 	root := t.TempDir()
 
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldStdout := os.Stdout
-	os.Stdout = writer
-	t.Cleanup(func() {
-		os.Stdout = oldStdout
-		_ = reader.Close()
-		_ = writer.Close()
-	})
-
-	exitCode := executeCLI([]string{
-		"--repo=" + root,
-		"init",
-		"--agent=codex",
-		"--hooks=false",
-		"--here=false",
-	}, io.Discard, io.Discard)
-
-	_ = writer.Close()
-	os.Stdout = oldStdout
-
-	output, readErr := io.ReadAll(reader)
-	if readErr != nil {
-		t.Fatal(readErr)
-	}
+	output, _, _, exitCode := runCLIPrinted(t, root, "init", "--agent=codex", "--hooks=false", "--here=false")
 	if exitCode != ExitOK {
 		t.Fatalf(
 			"init --agent=codex失败: exit=%d\n%s",
@@ -171,7 +143,7 @@ func TestInitOutputPointsToConcreteCodexGuide(
 		)
 	}
 
-	text := string(output)
+	text := output
 
 	for _, anchor := range []string{
 		"aoci index agent guide --agent codex --json",

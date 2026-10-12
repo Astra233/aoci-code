@@ -3,13 +3,12 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
-	"os"
-	"os/exec"
 	"strings"
 	"testing"
 
 	"github.com/aoci-spec/aoci-code/internal/cognitionplan"
 	"github.com/aoci-spec/aoci-code/internal/config"
+	"github.com/aoci-spec/aoci-code/internal/testkit"
 )
 
 func TestCognitionPlanCLIJSONAndLocales(t *testing.T) {
@@ -49,11 +48,7 @@ func TestCognitionPlanCLIJSONAndLocales(t *testing.T) {
 
 func initCLITestGitRepository(t *testing.T, root string) {
 	t.Helper()
-	command := exec.Command("git", "-C", root, "init", "-q")
-	command.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("git init failed: %v: %s", err, output)
-	}
+	testkit.InitGit(t, root)
 }
 
 func TestCognitionPlanCommandDoesNotReplaceInit(t *testing.T) {

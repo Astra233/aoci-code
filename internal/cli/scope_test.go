@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -15,16 +14,12 @@ import (
 	"github.com/aoci-spec/aoci-code/internal/machinecontract"
 	"github.com/aoci-spec/aoci-code/internal/managedscope"
 	"github.com/aoci-spec/aoci-code/internal/scopechange"
+	"github.com/aoci-spec/aoci-code/internal/testkit"
 )
 
 func buildScopeCLIRepo(t *testing.T) string {
 	t.Helper()
-	root := t.TempDir()
-	command := exec.Command("git", "-C", root, "init", "-q")
-	command.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("git init: %v: %s", err, output)
-	}
+	root := testkit.GitRepo(t)
 	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package sample\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

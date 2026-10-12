@@ -6,7 +6,6 @@ package cli
 import (
 	"bytes"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"github.com/aoci-spec/aoci-code/internal/config"
 	"github.com/aoci-spec/aoci-code/internal/machinecontract"
 	"github.com/aoci-spec/aoci-code/internal/managedscope"
+	"github.com/aoci-spec/aoci-code/internal/testkit"
 )
 
 // The RuoYi shape: third-party bundles, fonts and a source map under static/
@@ -51,17 +51,8 @@ func starterRuleFixture(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
-	for _, args := range [][]string{
-		{"init", "-q"},
-		{"-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"},
-		{"-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "fixture"},
-	} {
-		command := exec.Command("git", args...)
-		command.Dir = root
-		if out, err := command.CombinedOutput(); err != nil {
-			t.Skipf("git unavailable: %v %s", err, out)
-		}
-	}
+	testkit.InitGit(t, root)
+	testkit.Commit(t, root, "fixture")
 	return root
 }
 

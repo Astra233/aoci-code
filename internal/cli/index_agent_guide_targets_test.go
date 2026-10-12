@@ -3,12 +3,12 @@ package cli
 import (
 	"bytes"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/aoci-spec/aoci-code/internal/cognition"
 	"github.com/aoci-spec/aoci-code/internal/config"
+	"github.com/aoci-spec/aoci-code/internal/testkit"
 	"github.com/aoci-spec/aoci-code/internal/volumegovernance"
 )
 
@@ -18,10 +18,7 @@ import (
 // now read one deduplicated set; this pins the Guide side on a repository
 // initialized and scanned the way aoci init does it.
 func TestVolumeGuideCountsAFreshUnscannedFileOnce(t *testing.T) {
-	root := t.TempDir()
-	if output, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
-		t.Fatalf("git init: %v: %s", err, output)
-	}
+	root := testkit.GitRepo(t)
 	write := func(name, text string) {
 		t.Helper()
 		if err := os.WriteFile(filepath.Join(root, name), []byte(text), 0o644); err != nil {

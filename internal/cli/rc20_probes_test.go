@@ -3,86 +3,35 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
-	"io"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/aoci-spec/aoci-code/internal/testkit"
 	"github.com/aoci-spec/aoci-code/textassets"
 )
-
-func rc20Git(t *testing.T, root string, args ...string) {
-	t.Helper()
-	command := exec.Command("git", append([]string{"-C", root}, args...)...)
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("git %v: %v: %s", args, err, output)
-	}
-}
-
-func rc20Write(t *testing.T, root, rel, body string) {
-	t.Helper()
-	full := filepath.Join(root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// captureStdout runs fn while os.Stdout is a pipe, for commands that print
-// with fmt.Println rather than through the command writer.
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	previous := os.Stdout
-	os.Stdout = writer
-	done := make(chan string)
-	go func() {
-		data, _ := io.ReadAll(reader)
-		done <- string(data)
-	}()
-	fn()
-	os.Stdout = previous
-	_ = writer.Close()
-	return <-done
-}
-
-func pinLocale(t *testing.T) {
-	t.Helper()
-	previous := textassets.ActiveLocale()
-	t.Cleanup(func() { _ = textassets.SetActiveLocale(previous) })
-	if err := textassets.SetActiveLocale(textassets.DefaultLocale); err != nil {
-		t.Fatal(err)
-	}
-}
 
 // #107: scan says how many submodules it left alone, and explain names the
 // boundary for the gitlink and for a path beneath it.
 func TestScanAnnouncesGitSubmodulesAndExplainNamesTheBoundary(t *testing.T) {
-	pinLocale(t)
+	testkit.PinLocale(t, textassets.DefaultLocale)
 	sub := t.TempDir()
-	rc20Git(t, sub, "init", "-q")
-	rc20Write(t, sub, "lib.go", "package lib\n")
-	rc20Git(t, sub, "add", "lib.go")
-	rc20Git(t, sub, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "sub")
+	testkit.Git(t, sub, "init", "-q")
+	testkit.WriteFile(t, sub, "lib.go", "package lib\n")
+	testkit.Git(t, sub, "add", "lib.go")
+	testkit.Git(t, sub, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "sub")
 	root := t.TempDir()
-	rc20Git(t, root, "init", "-q")
-	rc20Write(t, root, "main.go", "package main\n")
-	rc20Git(t, root, "add", "main.go")
-	rc20Git(t, root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "super")
-	rc20Git(t, root, "-c", "protocol.file.allow=always", "-c", "user.email=t@t", "-c", "user.name=t", "submodule", "add", "-q", sub, "vendor_sub")
+	testkit.Git(t, root, "init", "-q")
+	testkit.WriteFile(t, root, "main.go", "package main\n")
+	testkit.Git(t, root, "add", "main.go")
+	testkit.Git(t, root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "super")
+	testkit.Git(t, root, "-c", "protocol.file.allow=always", "-c", "user.email=t@t", "-c", "user.name=t", "submodule", "add", "-q", sub, "vendor_sub")
 
 	var stdout, stderr bytes.Buffer
 	if code := executeCLI([]string{"--repo", root, "init", "--locale", "en-US"}, &stdout, &stderr); code != ExitOK {
 		t.Fatalf("init: %s %s", stdout.String(), stderr.String())
 	}
-	announced := captureStdout(t, func() {
+	announced := testkit.CaptureStdout(t, func() {
 		if code := executeCLI([]string{"--repo", root, "scan"}, &stdout, &stderr); code != ExitOK {
 			t.Errorf("scan: %s %s", stdout.String(), stderr.String())
 		}
@@ -106,17 +55,17 @@ func TestScanAnnouncesGitSubmodulesAndExplainNamesTheBoundary(t *testing.T) {
 // #103: the E scale letter is audited against the source line count in
 // verify and check, as information that never changes the exit code.
 func TestCheckAndVerifyReportEScaleMismatchesWithoutFailing(t *testing.T) {
-	pinLocale(t)
+	testkit.PinLocale(t, textassets.DefaultLocale)
 	root := t.TempDir()
-	rc20Git(t, root, "init", "-q")
-	rc20Write(t, root, "small.go", "package main\n")
+	testkit.Git(t, root, "init", "-q")
+	testkit.WriteFile(t, root, "small.go", "package main\n")
 	var stdout, stderr bytes.Buffer
 	if code := executeCLI([]string{"--repo", root, "init", "--locale", "en-US"}, &stdout, &stderr); code != ExitOK {
 		t.Fatalf("init: %s %s", stdout.String(), stderr.String())
 	}
-	rc20Write(t, root, "big.go", "package main\n"+strings.Repeat("// line\n", 500))
+	testkit.WriteFile(t, root, "big.go", "package main\n"+strings.Repeat("// line\n", 500))
 	section := "===" + filepath.ToSlash(root) + "/===\n"
-	rc20Write(t, root, "aoci.code.txt", "#AOCI-CODE-VOLUME: 1\n\n"+section+
+	testkit.WriteFile(t, root, "aoci.code.txt", "#AOCI-CODE-VOLUME: 1\n\n"+section+
 		"big.go[CG5T]: F:Grew past its band | R:- | A:- | S:-\n"+
 		"small.go[CG5T]: F:Still tiny | R:- | A:- | S:-\n")
 	for _, command := range []string{"check", "verify"} {
@@ -153,12 +102,12 @@ func TestCheckAndVerifyReportEScaleMismatchesWithoutFailing(t *testing.T) {
 // #102: under Managed Scope the Legacy refresh refuses, and the refusal now
 // names the path that works instead of pointing at the other refusal.
 func TestBaselineScopePlanNamesTheManagedScopePath(t *testing.T) {
-	pinLocale(t)
+	testkit.PinLocale(t, textassets.DefaultLocale)
 	root := t.TempDir()
-	rc20Git(t, root, "init", "-q")
-	rc20Write(t, root, "main.go", "package main\n")
-	rc20Git(t, root, "add", "main.go")
-	rc20Git(t, root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+	testkit.Git(t, root, "init", "-q")
+	testkit.WriteFile(t, root, "main.go", "package main\n")
+	testkit.Git(t, root, "add", "main.go")
+	testkit.Git(t, root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
 	var stdout, stderr bytes.Buffer
 	if code := executeCLI([]string{"--repo", root, "init", "--locale", "en-US"}, &stdout, &stderr); code != ExitOK {
 		t.Fatalf("init: %s %s", stdout.String(), stderr.String())
