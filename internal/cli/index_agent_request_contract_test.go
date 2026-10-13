@@ -89,6 +89,85 @@ func TestAgentStageRequestsRejectDuplicateJSONKeys(
 	)
 }
 
+// Locks: a Host request whose keys differ only by case is refused by all three
+// protocols. encoding/json matches struct fields case-insensitively even under
+// DisallowUnknownFields, so without the fold scanner "Plan_ID" would land in
+// plan_id with the later value winning and no error at all.
+func TestAgentStageRequestsRejectCaseCollidingJSONKeys(
+	t *testing.T,
+) {
+	validPlanID := strings.Repeat("a", 64)
+	otherPlanID := strings.Repeat("b", 64)
+
+	cases := []struct {
+		name  string
+		read  func(string) error
+		input string
+		want  string
+	}{
+		{
+			name: "entries_plan_id",
+			read: func(input string) error {
+				_, err := readAgentStageRequest(bytes.NewBufferString(input))
+				return err
+			},
+			input: `{"version":1,"plan_id":"` + validPlanID + `","Plan_ID":"` + otherPlanID +
+				`","agent":"codex","entries":[]}`,
+			want: "JSON字段重复: Plan_ID (与 plan_id 仅大小写不同)",
+		},
+		{
+			name: "entries_nested_source_sha256",
+			read: func(input string) error {
+				_, err := readAgentStageRequest(bytes.NewBufferString(input))
+				return err
+			},
+			input: `{"version":1,"plan_id":"` + validPlanID + `","agent":"codex","entries":[{"path":"a.go",` +
+				`"source_sha256":"` + validPlanID + `","SOURCE_SHA256":"` + otherPlanID + `","entry":"x"}]}`,
+			want: "JSON字段重复: entries[0].SOURCE_SHA256 (与 entries[0].source_sha256 仅大小写不同)",
+		},
+		{
+			name: "header_agent",
+			read: func(input string) error {
+				_, err := readAgentHeaderStageRequest(bytes.NewBufferString(input))
+				return err
+			},
+			input: `{"version":1,"plan_id":"` + validPlanID + `","agent":"codex","Agent":"claude","header":"#x"}`,
+			want:  "JSON字段重复: Agent (与 agent 仅大小写不同)",
+		},
+		{
+			name: "curation_decision",
+			read: func(input string) error {
+				_, err := readAgentCurationStageRequest(bytes.NewBufferString(input))
+				return err
+			},
+			input: `{"version":1,"plan_id":"` + validPlanID + `","agent":"codex","decisions":[{` +
+				`"path":"a.bin","source_sha256":"` + validPlanID + `","decision":"include","Decision":"exclude",` +
+				`"role":"x","reason":"y","confidence":98}]}`,
+			want: "JSON字段重复: decisions[0].Decision (与 decisions[0].decision 仅大小写不同)",
+		},
+	}
+
+	for _, current := range cases {
+		t.Run(
+			current.name,
+			func(t *testing.T) {
+				err := current.read(current.input)
+				if err == nil ||
+					!strings.Contains(
+						err.Error(),
+						current.want,
+					) {
+					t.Fatalf(
+						"仅大小写不同的重复字段必须拒绝，期望 %q: %v",
+						current.want,
+						err,
+					)
+				}
+			},
+		)
+	}
+}
+
 func TestAgentRequestRawRequiredFields(
 	t *testing.T,
 ) {

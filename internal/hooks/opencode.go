@@ -67,6 +67,7 @@ func openCodeRuntimePaths(root string) (string, string, error) {
 }
 
 func decodeOpenCodeObject(raw []byte) (map[string]any, error) {
+	// Exact scan on purpose: opencode.json is user-owned and lands in map[string]any, where keys that differ only by case (server names under "mcp" included) are distinct entries.
 	if err := jsonstrict.RejectDuplicateKeys(raw); err != nil {
 		return nil, err
 	}

@@ -52,6 +52,9 @@ func TestBootstrapCodecsRejectUnknownDuplicateTrailingAndForeignVersions(t *test
 			}{
 				{"unknown field", strings.Replace(data, "{", "{\"unknown\":true,", 1), tc.label + "_invalid"},
 				{"duplicate field", strings.Replace(data, "{", "{\"version\":\"dup\",", 1), tc.label + "_invalid"},
+				// Without the fold scanner, DisallowUnknownFields would match "Version" to
+				// the version field and the later spelling would win silently.
+				{"case-only duplicate field", strings.Replace(data, "{", "{\"Version\":\"dup\",", 1), tc.label + "_invalid: JSON字段重复: version (与 Version 仅大小写不同)"},
 				{"trailing value", data + "{}", tc.label + "_invalid"},
 				{"trailing garbage", data + "x", tc.label + "_invalid"},
 				{"not an object", "[]", tc.label + "_invalid"},

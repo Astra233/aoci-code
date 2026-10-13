@@ -21,7 +21,7 @@ func DecodeDocument(
 	data []byte,
 	requireAudit bool,
 ) (*Document, error) {
-	if err := jsonstrict.RejectDuplicateKeys(
+	if err := jsonstrict.RejectDuplicateKeysFold(
 		data,
 	); err != nil {
 		return nil, fmt.Errorf(

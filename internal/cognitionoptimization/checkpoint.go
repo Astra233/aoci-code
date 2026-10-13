@@ -236,7 +236,7 @@ func RestartCompleted(root, expectedSHA256 string, input CreateInput) (StoredChe
 }
 
 func decodeCheckpoint(data []byte) (Checkpoint, error) {
-	if err := jsonstrict.RejectDuplicateKeys(data); err != nil {
+	if err := jsonstrict.RejectDuplicateKeysFold(data); err != nil {
 		return Checkpoint{}, fmt.Errorf("%w: %v", ErrCheckpointInvalid, err)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))

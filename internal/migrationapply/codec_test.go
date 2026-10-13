@@ -62,6 +62,9 @@ func TestMigrationCodecsRejectUnknownDuplicateTrailingAndForeignVersions(t *test
 			}{
 				{"unknown field", strings.Replace(data, "{", "{\"unknown\":true,", 1), tc.label + "_invalid"},
 				{"duplicate field", strings.Replace(data, "{", "{\"version\":\"dup\",", 1), tc.label + "_invalid"},
+				// Without the fold scanner, DisallowUnknownFields would match "Version" to
+				// the version field and the later spelling would win silently.
+				{"case-only duplicate field", strings.Replace(data, "{", "{\"Version\":\"dup\",", 1), tc.label + "_invalid: JSON字段重复: version (与 Version 仅大小写不同)"},
 				{"trailing value", data + "{}", tc.label + "_invalid"},
 				{"not an object", "[]", tc.label + "_invalid"},
 				{"foreign version", strings.Replace(data, tc.version, tc.version+"-next", 1), tc.label + "_version_unknown"},

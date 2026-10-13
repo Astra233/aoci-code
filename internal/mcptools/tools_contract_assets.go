@@ -73,6 +73,7 @@ func loadMCPInputSchemas() (mcpInputSchemas, error) {
 			localeSafeMCPDetail(err.Error()),
 		))
 	}
+	// Exact scan on purpose: the embedded asset lands in map[string]map[string]string, which keys by bytes rather than by encoding/json's folded struct-field match.
 	if err := jsonstrict.RejectDuplicateKeys([]byte(content)); err != nil {
 		return nil, fmt.Errorf("%s", mcpMessage(
 			"mcp.asset.input_schema_decode_failed",

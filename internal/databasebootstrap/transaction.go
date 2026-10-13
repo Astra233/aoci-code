@@ -431,7 +431,7 @@ func prettyJSON(value any) ([]byte, error) {
 }
 
 func decodeStrict(data []byte, target any) error {
-	if err := jsonstrict.RejectDuplicateKeys(data); err != nil {
+	if err := jsonstrict.RejectDuplicateKeysFold(data); err != nil {
 		return err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))

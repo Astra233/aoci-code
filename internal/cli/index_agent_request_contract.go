@@ -11,13 +11,15 @@ import (
 	"github.com/aoci-spec/aoci-code/internal/jsonstrict"
 )
 
-// validateAgentRequestJSON拒绝任意层级的重复JSON字段。
+// validateAgentRequestJSON拒绝任意层级逐字节相同或仅大小写不同的重复JSON字段。
 //
+// 三份Host-Agent请求都解码进结构体，而encoding/json匹配结构体字段不区分大小写，
+// 仅大小写不同的两个字段会悄悄以后者覆盖前者，所以这里用折叠扫描。
 // 语法、类型、未知字段与尾随内容继续由各协议既有严格解码器负责。
 func validateAgentRequestJSON(
 	data []byte,
 ) error {
-	return jsonstrict.RejectDuplicateKeys(data)
+	return jsonstrict.RejectDuplicateKeysFold(data)
 }
 
 // requireRawJSONString区分缺失、null、非字符串和真实空字符串。
