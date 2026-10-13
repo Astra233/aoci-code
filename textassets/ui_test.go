@@ -64,6 +64,47 @@ func TestVolumeRuntimeMessagesExistInEveryOfficialLocale(t *testing.T) {
 	}
 }
 
+// The PreToolUse hook texts carry tokens a host, a grep, or a reader acts on:
+// the "aoci ..." line prefixes, the STALE marker, the tool and command names,
+// and the line structure (a header ends with ":\n" so the Entry follows on
+// its own line; the strict suffix starts on a new line). A translation may
+// reword the prose, never those. Key parity and %s arity are already held by
+// Validate; this locks what parity cannot see.
+func TestPretoolHookMessagesKeepMachineTokensInEveryOfficialLocale(t *testing.T) {
+	for _, locale := range []string{DefaultLocale, LegacyLocale} {
+		for _, current := range []struct {
+			key    string
+			args   []any
+			prefix string
+			suffix string
+			tokens []string
+		}{
+			{"hook.pretool.path_unresolved", []any{"reason"}, "aoci hook: ", "", []string{"(reason)"}},
+			{"hook.pretool.not_indexed", []any{"src/n.go"}, "aoci: ", "", []string{"(src/n.go)", "aoci_update_entry"}},
+			{"hook.pretool.entry_header", nil, "aoci: ", ":\n", nil},
+			{"hook.pretool.stale_header", nil, "aoci ⚠ STALE: ", ":\n", nil},
+			{"hook.pretool.unbaselined_header", nil, "aoci: ", ":\n", nil},
+			{"hook.pretool.strict_blocked", nil, "\naoci strict: ", "", []string{"aoci_update_entry", "aoci scan"}},
+		} {
+			message, err := Message(locale, current.key, current.args...)
+			if err != nil {
+				t.Fatalf("%s %s: %v", locale, current.key, err)
+			}
+			if !strings.HasPrefix(message, current.prefix) || !strings.HasSuffix(message, current.suffix) {
+				t.Errorf("%s %s must start with %q and end with %q: %q", locale, current.key, current.prefix, current.suffix, message)
+			}
+			if strings.Count(message, "\n") != strings.Count(current.prefix+current.suffix, "\n") {
+				t.Errorf("%s %s must keep the line structure: %q", locale, current.key, message)
+			}
+			for _, token := range current.tokens {
+				if !strings.Contains(message, token) {
+					t.Errorf("%s %s lacks %q: %q", locale, current.key, token, message)
+				}
+			}
+		}
+	}
+}
+
 func TestPostureEffectMessageNamesOneModeInEveryOfficialLocale(t *testing.T) {
 	// The cross-locale signature check compares argument arity, and "%[1]s to
 	// %[1]s" still consumes exactly one argument, so it would pass while the
