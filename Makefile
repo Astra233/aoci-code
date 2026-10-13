@@ -194,6 +194,7 @@ FUZZ_TARGETS := \
 	./internal/mcptools:FuzzOverviewCursorChain \
 	./internal/mcptools:FuzzOverviewAttestationInput \
 	./internal/jsonstrict:FuzzRejectDuplicateKeys \
+	./internal/jsonstrict:FuzzRejectDuplicateKeysFold \
 	./internal/bootstrapapply:FuzzStrictDecode \
 	./internal/fs:FuzzNormalizeRelPath \
 	./internal/fs:FuzzMatchExcludePattern \
