@@ -51,6 +51,76 @@ All notable public changes to AOCI-CODE will be documented in this file.
   carried connector's own test suite runs against the openGauss container as
   an advisory step (300 pass, one server-behaviour difference on year-zero
   dates), and the page JavaScript tests get an explicit Node 22.
+- Removing a Code Entry keys on the object's path, so an orphan whose Entry
+  line is byte-identical to a line in another directory section (a staged
+  copy of the same file) goes while its live twin stays; the line-keyed
+  remover refused both as duplicates, and three such orphans held a
+  1,400-target authoring debt behind `write_conflict` (#117). A plain
+  repository-relative path under Volumes v1 names `code:<path>` and reaches
+  the Volume pipeline instead of the Legacy loader's `volume_read_only`
+  (#112); while a Managed Scope edit is pending, the orphan refusal says
+  `scope_change_required` and names `aoci scope activate --json`, since
+  orphan proof follows the active Baseline. The remove-entry help states that
+  Volumes removal is orphan-only on both surfaces.
+- A Volumes removal that had written the Volume and the Baseline but could
+  not complete its Ledger event left a receipt nothing could close and
+  `remove_ledger_completion_failed` carried no reason (#121). A Ledger line
+  that does not decode is now skipped by the terminal-event check, a line
+  over 1 MiB counts as one corrupt line instead of ending the read, the
+  failure names its cause, and a disabled Ledger is refused before anything
+  is written.
+- `aoci scope activate` reports `already_aligned` with exit status 0 and
+  records no transaction when the desired policy, budget, and authorization
+  posture already equal the active receipt and nothing would move; it used
+  to file a zero-change transaction and report it as "applied" (#113).
+  `scope status` and `scope show` carry `repository_root`.
+- When a Volumes v1 policy edit blocks `aoci_maintain`, `next_commands` and
+  the Volumes Guide name `scope activate --json` beside `scope status --json`
+  instead of looping between status and Maintain (#118; contributed by
+  dayebishouji in PR #119).
+- Twenty-six CLI commands rendered their English short description under
+  every locale because the hand-kept localization map had no entry for them
+  (`scope budget` and its subcommands, `observe-policy`, `approval-mode`,
+  `authorize`, `source`, `capabilities`, `cognition onboard`, `baseline
+  scope`); all are mapped, and a test walks the visible tree under zh-CN.
+  The PreToolUse hook injected hardcoded Chinese text into every host; its
+  six texts now come from the UI catalog in both locales, byte-identical
+  under zh-CN.
+- `repair_required` findings about an object that does not exist, or already
+  exists, rendered "Repair only the reported  of this candidate"; each now
+  has its own action naming the identity and the create/update alternative,
+  and no field-less finding renders a blank.
+- Governed CAS writes work on filesystems that refuse `RENAME_EXCHANGE`,
+  such as WSL DrvFs (`/mnt/*`, 9p), where every Entry batch and Managed Scope
+  write failed with "原子交换目标失败: invalid argument" while `init` and
+  `scan` worked (#116). The primitive is probed and, when refused, emulated
+  with a hard link and two renames that end in the primitive's exact
+  post-state; crash states converge through the existing recovery. On such
+  a filesystem the replacement window is link-to-rename rather than zero: a
+  writer outside aoci that replaces the target by rename in that instant is
+  overwritten rather than detected, while in-place modification is still
+  caught; every aoci writer is serialized by the CAS lock. Verified on a real
+  DrvFs mount.
+- Strict decoders of governance and protocol artifacts (receipts, run
+  manifests, previews, checkpoints, onboarding sessions, Curation documents,
+  Host-Agent stage requests) reject two keys that differ only by letter case:
+  `encoding/json` matches struct fields case-insensitively, so
+  `{"path":"a","Path":"b"}` passed the exact duplicate-key check and decoded
+  last-wins without an error. Callers that decode user-owned maps, such as
+  the OpenCode configuration, keep the exact check, where differently cased
+  keys are distinct by design. The new scanner has its own fuzz target under
+  `make fuzz-smoke`.
+- Database Evidence collects MySQL 5.7.6 and later (#111). The collector
+  reads the server version and runs only the catalog queries that release can
+  answer: CHECK constraints from 8.0.16, index expressions from 8.0.13, index
+  visibility from 8.0.0; a 5.7 server records an empty check list, since 5.7
+  parses CHECK syntax and stores nothing, and canonical Evidence keeps one
+  shape on every supported release. A server below 5.7.6, an unreadable
+  version, or MariaDB fails closed with `unsupported_catalog_feature` before
+  any table query. The full-confidence MySQL job runs both `mysql:5.7` and
+  `mysql:8.4`, each followed by the black-box database lifecycle, and
+  `mcp_lifecycle.py --mysql-image mysql:5.7` maps the two 8.0-only statements
+  of the frozen fixture to their 5.7 shape in memory.
 
 ## v0.1.0-rc20
 
