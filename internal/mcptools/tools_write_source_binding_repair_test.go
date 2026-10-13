@@ -72,3 +72,27 @@ func TestWrongSourceBindingFindingCarriesTheIssuedValue(t *testing.T) {
 		t.Fatalf("copying the expected value must complete the same batch: %#v", again)
 	}
 }
+
+// Locks: a finding about the object's existence, and any finding that names
+// no field, renders a whole-candidate action; the field-shaped sentence used
+// to read "Repair only the reported  of this candidate".
+func TestObjectExistenceRepairActionsNameTheWholeCandidate(t *testing.T) {
+	previous := textassets.ActiveLocale()
+	t.Cleanup(func() { _ = textassets.SetActiveLocale(previous) })
+	for _, locale := range []string{textassets.DefaultLocale, textassets.LegacyLocale} {
+		if err := textassets.SetActiveLocale(locale); err != nil {
+			t.Fatal(err)
+		}
+		generic := safeRepairAction(cognition.RepairFinding{RuleCode: "impact_structural_change_invalid"})
+		missing := safeRepairAction(cognition.RepairFinding{RuleCode: "impact_object_missing"})
+		present := safeRepairAction(cognition.RepairFinding{RuleCode: "impact_object_already_present"})
+		for name, action := range map[string]string{"generic": generic, "missing": missing, "present": present} {
+			if action == "" || strings.Contains(action, "  ") || strings.Contains(action, "%") {
+				t.Fatalf("%s %s action must be a complete sentence: %q", locale, name, action)
+			}
+		}
+		if missing == present || missing == generic || present == generic {
+			t.Fatalf("%s object findings must carry their own action: missing=%q present=%q generic=%q", locale, missing, present, generic)
+		}
+	}
+}

@@ -149,7 +149,16 @@ func safeRepairAction(finding cognition.RepairFinding) string {
 		return writeMessage("entry.repair.action.database_candidate_id")
 	case "database_candidate_batch_id_mismatch":
 		return writeMessage("entry.repair.action.database_batch_id")
+	case "impact_object_missing":
+		return writeMessage("entry.repair.action.object_missing")
+	case "impact_object_already_present":
+		return writeMessage("entry.repair.action.object_present")
 	default:
+		if strings.TrimSpace(finding.Field) == "" {
+			// A finding without a field names the whole candidate; the
+			// field-shaped sentence rendered "the reported  of this candidate".
+			return writeMessage("entry.repair.action.candidate_whole")
+		}
 		return writeMessage("entry.repair.action.candidate", finding.Field)
 	}
 }

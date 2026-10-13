@@ -571,7 +571,8 @@ func bindImpactCandidateFinding(finding *ImpactFinding, candidate ImpactCandidat
 	}
 	if finding.Field == "" {
 		switch finding.Code {
-		case "impact_object_identity_invalid", "impact_candidate_duplicate":
+		case "impact_object_identity_invalid", "impact_candidate_duplicate",
+			"impact_object_missing", "impact_object_already_present":
 			finding.Field = "canonical_object_identity"
 		case "impact_candidate_volume_mismatch":
 			finding.Field = "domain"
