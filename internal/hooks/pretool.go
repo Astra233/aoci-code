@@ -8,6 +8,7 @@
 //   - 漂移速查消费团队line_ending_tolerance，纯CRLF/LF表示差异
 //     不产生STALE警告，更不得触发strict阻断;
 //   - 路径解析失败、索引缺失或配置异常均放行，hook自身故障不能卡死工作流;
+//   - 注入文本取自当前Locale的UI消息目录(hook.pretool.*)，目录故障同样放行;
 //   - 命中后记录ledger op=hook_trigger。
 //
 // 本内核只返回文本和阻断决策；退出码映射由internal/cli/hook.go及
@@ -24,6 +25,7 @@ import (
 	afs "github.com/aoci-spec/aoci-code/internal/fs"
 	"github.com/aoci-spec/aoci-code/internal/index"
 	"github.com/aoci-spec/aoci-code/internal/ledger"
+	"github.com/aoci-spec/aoci-code/textassets"
 )
 
 // PretoolResult是hook内核输出。
@@ -52,11 +54,14 @@ func HandlePreTool(
 		rawPath,
 	)
 	if err != nil {
-		return PretoolResult{
-			Text: "aoci hook: 路径未解析(" +
-				err.Error() +
-				"),本次不注入",
+		text, ok := pretoolMessage(
+			"hook.pretool.path_unresolved",
+			err.Error(),
+		)
+		if !ok {
+			return PretoolResult{}
 		}
+		return PretoolResult{Text: text}
 	}
 
 	// 任意环境加载失败均静默放行。
@@ -87,10 +92,14 @@ func HandlePreTool(
 	stale := false
 
 	if entry == nil {
-		result.Text =
-			"aoci: 该文件未收录索引(" +
-				relativePath +
-				")。改动完成后请用 aoci_update_entry 补录条目。"
+		text, ok := pretoolMessage(
+			"hook.pretool.not_indexed",
+			relativePath,
+		)
+		if !ok {
+			return PretoolResult{}
+		}
+		result.Text = text
 	} else {
 		// 判定宽容、写入安全不变：
 		// 本处只决定是否提示或阻断，不参与CAS与Stage源码摘要绑定。
@@ -104,16 +113,17 @@ func HandlePreTool(
 
 		stale = currentStale
 
-		header :=
-			"aoci: 该文件的索引条目(改动前请遵循其中约束):\n"
+		headerKey := "hook.pretool.entry_header"
 
 		if stale {
-			header =
-				"aoci ⚠ STALE: 该文件在条目生成后已变更," +
-					"以下条目可能过期,先核对源码:\n"
+			headerKey = "hook.pretool.stale_header"
 		} else if unbaselined {
-			header =
-				"aoci: 该文件未入基线(漂移状态未知),条目如下:\n"
+			headerKey = "hook.pretool.unbaselined_header"
+		}
+
+		header, ok := pretoolMessage(headerKey)
+		if !ok {
+			return PretoolResult{}
 		}
 
 		result.Text = header +
@@ -121,11 +131,14 @@ func HandlePreTool(
 
 		if stale &&
 			configValue.HookStrict {
+			suffix, ok := pretoolMessage(
+				"hook.pretool.strict_blocked",
+			)
+			if !ok {
+				return PretoolResult{}
+			}
 			result.Block = true
-			result.Text +=
-				"\naoci strict: 条目已过期,本次写入被阻断 —— " +
-					"请先核对源码并 aoci_update_entry 更新条目" +
-					"(或 aoci scan 前移基线)后重试。"
+			result.Text += suffix
 		}
 	}
 
@@ -173,4 +186,17 @@ func hookDocument(root, configuredIndexPath, resolvedIndexPath string) *index.Do
 	}
 	index.ResolveRelPaths(document, root)
 	return document
+}
+
+// pretoolMessage renders one hook text from the UI message catalog of the
+// active locale, so an en-US repository is not handed Chinese prose. The hook
+// is fail-open by contract: a catalog failure (unknown key, argument mismatch,
+// damaged bundle) reports ok=false, and HandlePreTool then injects nothing and
+// blocks nothing, exactly as it treats its other environment failures.
+func pretoolMessage(key string, args ...any) (string, bool) {
+	text, err := textassets.Message(textassets.ActiveLocale(), key, args...)
+	if err != nil {
+		return "", false
+	}
+	return text, true
 }
