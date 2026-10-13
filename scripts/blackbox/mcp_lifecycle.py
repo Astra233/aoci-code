@@ -35,7 +35,7 @@ Usage:
 Env:  AOCI_REPO / AOCI_BIN / AOCI_OPENCODE 覆盖仓库、二进制与 opencode 路径。
 Results: scripts/blackbox/results/<run>.json + artifacts/（gitignored）。
 """
-import argparse, base64, hashlib, json, os, re, shutil, socket, subprocess, sys, tempfile, time, traceback
+import argparse, atexit, base64, hashlib, json, os, re, shutil, socket, subprocess, sys, tempfile, time, traceback
 
 # The suites print fixture output that may carry Chinese text; on a Windows
 # runner the console codec is cp1252, so print the report as UTF-8 regardless.
@@ -49,7 +49,12 @@ for _stream in (sys.stdout, sys.stderr):
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
-os.environ.setdefault("AOCI_SCENARIO_WORK", tempfile.mkdtemp(prefix="aoci-lifecycle-lib-"))
+# mcp_scenarios reads AOCI_SCENARIO_WORK at import; a directory this module
+# creates for that is its own to remove, or every import leaked one.
+if "AOCI_SCENARIO_WORK" not in os.environ:
+    _LIB_WORK = tempfile.mkdtemp(prefix="aoci-lifecycle-lib-")
+    os.environ["AOCI_SCENARIO_WORK"] = _LIB_WORK
+    atexit.register(shutil.rmtree, _LIB_WORK, True)
 from mcp_scenarios import Session, text_of, jload, parse_kv, meta_and_body, cli, sh, maintain, host_window_summary, mark_team_raised_batch  # noqa: E402
 
 REPO = os.environ.get("AOCI_REPO", os.path.dirname(os.path.dirname(_HERE)))
