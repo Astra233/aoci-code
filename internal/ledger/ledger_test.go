@@ -537,3 +537,34 @@ func TestEstimateTokens(t *testing.T) {
 		}
 	}
 }
+
+// Locks: an oversize line is one corrupt line and reading continues past it;
+// bufio.Scanner stopped there silently, hiding every later event from the
+// read-back a terminal event depends on (#121). An unterminated final line
+// still decodes.
+func TestRecentSkipsOversizeLineAndKeepsLaterEvents(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".aoci", "ledger.jsonl")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	huge := strings.Repeat("y", maxLedgerLineBytes+1)
+	if err := os.WriteFile(path, []byte(huge+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	Append(root, true, Event{Op: "after_oversize"})
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString(`{"op":"unterminated"}`); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	events, corrupt := Recent(root, 0)
+	if corrupt != 1 || len(events) != 2 || events[0].Op != "after_oversize" || events[1].Op != "unterminated" {
+		t.Fatalf("events = %+v corrupt = %d", events, corrupt)
+	}
+}

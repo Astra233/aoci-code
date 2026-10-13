@@ -50,6 +50,7 @@ import (
 
 	"github.com/aoci-spec/aoci-code/internal/baseline"
 	"github.com/aoci-spec/aoci-code/internal/cognition"
+	"github.com/aoci-spec/aoci-code/internal/config"
 	"github.com/aoci-spec/aoci-code/internal/fs"
 	"github.com/aoci-spec/aoci-code/internal/index"
 	"github.com/aoci-spec/aoci-code/internal/ledger"
@@ -186,6 +187,14 @@ func planRemoveEntry(root, rawPath string, orphanOnly bool) (*removePlan, *Fail)
 		}
 	}
 
+	// A plain repository-relative path under a Volumes v1 layout names the
+	// Code object code:<path>; route it to the Volume pipeline instead of the
+	// Legacy loader, whose volume_read_only refusal never named that spelling
+	// (#112).
+	if ref, isVolume := volumeCodeRef(root, rel); isVolume {
+		return planVolumeRemoveEntry(root, ref, orphanOnly)
+	}
+
 	rc, fail := loadRepoCtx(root)
 	if fail != nil {
 		return nil, fail
@@ -208,7 +217,7 @@ func planRemoveEntry(root, rawPath string, orphanOnly bool) (*removePlan, *Fail)
 		currentHash := indexTextHash(rc.text)
 		if !recovery.Completed && currentHash == recovery.PreIndexSHA256 {
 			if entry.FullLine == recovery.RemovedLine {
-				resumedText, removeErr := index.RemoveEntry(rc.text, entry.FullLine)
+				resumedText, removeErr := index.RemoveEntryForPath(rc.text, root, rel, entry.FullLine)
 				if removeErr == nil && indexTextHash(resumedText) == recovery.PostIndexSHA256 {
 					return &removePlan{
 						out:     &RemoveOutcome{Rel: rel, RemovedLine: entry.FullLine},
@@ -279,7 +288,8 @@ func planRemoveEntry(root, rawPath string, orphanOnly bool) (*removePlan, *Fail)
 		}
 	}
 
-	newText, rmErr := index.RemoveEntry(rc.text, entry.FullLine)
+	// Path-keyed, so a byte-identical line in another section stays (#117).
+	newText, rmErr := index.RemoveEntryForPath(rc.text, root, rel, entry.FullLine)
 	if rmErr != nil {
 		return nil, &Fail{
 			Code: "write_conflict",
@@ -299,6 +309,23 @@ func planRemoveEntry(root, rawPath string, orphanOnly bool) (*removePlan, *Fail)
 		indexHash:    indexTextHash(rc.text),
 		orphanOnly:   orphanOnly,
 	}, nil
+}
+
+// volumeCodeRef maps a plain repository-relative path onto its canonical Code
+// identity when the repository is a Volumes v1 layout, so `--path dir/file.go`
+// and `path: "dir/file.go"` reach the same guarded Volume pipeline as
+// `code:dir/file.go`. Any load failure answers false and the Legacy path keeps
+// its own diagnostics.
+func volumeCodeRef(root, rel string) (string, bool) {
+	cfg, err := config.LoadReadOnly(root)
+	if err != nil {
+		return "", false
+	}
+	set, err := cognition.Load(root, cfg.IndexPath)
+	if err != nil || set == nil || set.LayoutMode != cognition.LayoutVolumesV1 {
+		return "", false
+	}
+	return "code:" + rel, true
 }
 
 func requireRemoveTargetAbsent(root, rel string) *Fail {
@@ -743,7 +770,8 @@ func closeSupersededRemove(root, source string, p *removePlan, objectAbsent func
 		// Volumes completion is a terminal Ledger event, as its ordinary commit
 		// writes; Legacy never required the Ledger and keeps the tolerant append.
 		if err := cognitiontxn.EnsureLedger(root, p.rc.cfg.LedgerEnabled, event); err != nil {
-			return &Fail{Code: errInternal, Msg: "remove_ledger_completion_failed"}
+			return &Fail{Code: errInternal, Msg: "remove_ledger_completion_failed: " + localeSafeWriteDetail(err.Error()),
+				Hint: writeMessage("remove.hint.retry_recovery")}
 		}
 	} else {
 		ledger.Append(root, p.rc.cfg.LedgerEnabled, event)

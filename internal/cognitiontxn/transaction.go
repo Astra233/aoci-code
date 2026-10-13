@@ -366,10 +366,13 @@ func EnsureLedger(root string, enabled bool, expected ledger.Event) error {
 	if !enabled {
 		return fmt.Errorf("cognition_transaction_ledger_required")
 	}
-	events, corrupt := ledger.Recent(root, 0)
-	if corrupt != 0 {
-		return fmt.Errorf("cognition_transaction_ledger_corrupt: %d", corrupt)
-	}
+	// A line elsewhere in the Ledger that does not decode (a write cut short by
+	// a crash, a hand edit, a foreign tool) is skipped by Recent and is not
+	// this event's business: the Ledger is non-authoritative, and the proof
+	// this function owes is that its own terminal event is present once.
+	// Refusing on any corrupt line left every Volumes removal applied but
+	// unfinished, with a receipt nothing could close (#121).
+	events, _ := ledger.Recent(root, 0)
 	for _, event := range events {
 		if event.Op != expected.Op || event.RecoveryTransactionID != expected.RecoveryTransactionID {
 			continue
@@ -380,10 +383,7 @@ func EnsureLedger(root string, enabled bool, expected ledger.Event) error {
 		return fmt.Errorf("cognition_transaction_ledger_terminal_event_conflict")
 	}
 	ledger.Append(root, true, expected)
-	events, corrupt = ledger.Recent(root, 0)
-	if corrupt != 0 {
-		return fmt.Errorf("cognition_transaction_ledger_corrupt: %d", corrupt)
-	}
+	events, _ = ledger.Recent(root, 0)
 	for _, event := range events {
 		if event.Op == expected.Op && event.RecoveryTransactionID == expected.RecoveryTransactionID && terminalEventEqual(event, expected) {
 			return nil

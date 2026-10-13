@@ -332,11 +332,19 @@ func Recent(root string, n int) ([]Event, int) {
 
 	corrupt := 0
 
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-
-	for scanner.Scan() {
-		line := scanner.Bytes()
+	// A line longer than the bound counts as one corrupt line and reading goes
+	// on; bufio.Scanner stopped at it silently, so every event after an
+	// oversize line vanished from the read-back a terminal event depends on.
+	reader := bufio.NewReaderSize(file, 64*1024)
+	for {
+		line, tooLong, err := readLedgerLine(reader, maxLedgerLineBytes)
+		if err != nil {
+			break
+		}
+		if tooLong {
+			corrupt++
+			continue
+		}
 		if len(line) == 0 {
 			continue
 		}
@@ -358,6 +366,35 @@ func Recent(root string, n int) ([]Event, int) {
 	}
 
 	return all, corrupt
+}
+
+// maxLedgerLineBytes bounds one JSONL event on read; a longer line is reported
+// as corrupt and skipped whole, never truncated into a different event.
+const maxLedgerLineBytes = 1024 * 1024
+
+// readLedgerLine returns the next line without its terminator, whether it
+// exceeded maxBytes, and io.EOF once the file is exhausted. An unterminated
+// final line is returned like any other.
+func readLedgerLine(reader *bufio.Reader, maxBytes int) ([]byte, bool, error) {
+	var line []byte
+	tooLong := false
+	for {
+		part, isPrefix, err := reader.ReadLine()
+		if err != nil {
+			return line, tooLong, err
+		}
+		if !tooLong {
+			if len(line)+len(part) > maxBytes {
+				tooLong = true
+				line = nil
+			} else {
+				line = append(line, part...)
+			}
+		}
+		if !isPrefix {
+			return line, tooLong, nil
+		}
+	}
 }
 
 // EstimateTokens粗略token估算，仅供趋势参考。

@@ -147,7 +147,7 @@ func planVolumeRemoveEntry(root, objectRef string, _ bool) (*removePlan, *Fail) 
 		}
 		guardSet = impact.GuardSet
 	}
-	newText, removeErr := index.RemoveEntry(string(asset.Raw), object.CanonicalLine)
+	newText, removeErr := removeObjectLine(root, asset, volumeID, objectRef, object)
 	if removeErr != nil {
 		return nil, &Fail{Code: errWriteConflict, Msg: writeMessage("remove.transform_failed", localeSafeWriteDetail(removeErr.Error()))}
 	}
@@ -194,6 +194,19 @@ func planVolumeRemoveEntry(root, objectRef string, _ bool) (*removePlan, *Fail) 
 	}, nil
 }
 
+// removeObjectLine drops one object's line from the Volume text. A Code object
+// is removed by its repository-relative path, so a byte-identical line in
+// another directory section (a staged copy of the same file, #117) is left
+// alone; the line-keyed remover refused those as "duplicate pollution" and the
+// orphan could never go while its live twin stayed. A Database object has no
+// path, and its identity is unique within the Volume, so the line is its key.
+func removeObjectLine(root string, asset *cognition.Asset, volumeID, objectRef string, object *cognition.Object) (string, error) {
+	if volumeID == cognition.ScopeCode {
+		return index.RemoveEntryForPath(string(asset.Raw), root, strings.TrimPrefix(objectRef, "code:"), object.CanonicalLine)
+	}
+	return index.RemoveEntry(string(asset.Raw), object.CanonicalLine)
+}
+
 func volumeRemovePlanFromRecovery(root string, loaded *cognitionRepoCtx, asset *cognition.Asset, recovery *removeRecovery) *removePlan {
 	cfgCopy := *loaded.cfg
 	cfgCopy.IndexPath = recovery.VolumePath
@@ -227,7 +240,29 @@ func proveVolumeOrphan(root string, loaded *cognitionRepoCtx, objectRef, volumeI
 			}
 		}
 	}
+	// Orphan proof follows the active Baseline. While a Managed Scope edit is
+	// still pending (#112: an exclude rule added after the file was indexed),
+	// the active scope still indexes the path, so no Maintain will ever name
+	// it as an orphan until the change is activated; say so instead of sending
+	// the caller round the Maintain loop.
+	if volumeID == cognition.ScopeCode && factsReportScopeChangeRequired(facts) {
+		return facts, &Fail{Code: errBadArgs,
+			Msg:  "remove_target_not_proven_orphan: " + writeMessage("remove.orphan_blocked_by_scope_change", strings.TrimPrefix(objectRef, "code:"), "aoci "+machinecontract.RemediationCommandScopeActivate),
+			Hint: "activate_pending_scope_change_then_run_aoci_maintain"}
+	}
 	return facts, &Fail{Code: errBadArgs, Msg: "remove_target_not_proven_orphan", Hint: "run_aoci_maintain_and_use_its_exact_orphan_candidate"}
+}
+
+func factsReportScopeChangeRequired(facts *volumegovernance.Facts) bool {
+	if facts == nil {
+		return false
+	}
+	for _, finding := range facts.Findings {
+		if finding.Code == "scope_change_required" {
+			return true
+		}
+	}
+	return false
 }
 
 // proveVolumeOwnershipRepair recognizes only the exact shared-governance
@@ -382,6 +417,13 @@ func commitVolumeRemove(root, source string, plan *removePlan) *Fail {
 	if fail := rejectOtherRemovePending(root, plan); fail != nil {
 		return fail
 	}
+	// Completion is a terminal Ledger event, so a Ledger the team configuration
+	// has disabled is refused here, before the receipt, the Volume, and the
+	// Baseline are written; refusing after them left every removal applied but
+	// unfinished (#121).
+	if !plan.rc.cfg.LedgerEnabled {
+		return &Fail{Code: errWriteConflict, Msg: "remove_ledger_disabled", Hint: writeMessage("remove.hint.ledger_disabled")}
+	}
 	if plan.superseded {
 		return closeSupersededRemove(root, source, plan, func() *Fail {
 			cfg, err := config.LoadReadOnly(root)
@@ -459,7 +501,8 @@ func commitVolumeRemove(root, source string, plan *removePlan) *Fail {
 		PostIndexSHA256: recovery.PostIndexSHA256, IndexSHA256: recovery.PostIndexSHA256,
 		BaselineSHA256: recovery.BaselinePostSHA256}
 	if err := cognitiontxn.EnsureLedger(root, plan.rc.cfg.LedgerEnabled, event); err != nil {
-		return &Fail{Code: errInternal, Msg: "remove_ledger_completion_failed"}
+		return &Fail{Code: errInternal, Msg: "remove_ledger_completion_failed: " + localeSafeWriteDetail(err.Error()),
+			Hint: writeMessage("remove.hint.retry_recovery")}
 	}
 	if err := removeRecoveryFile(removeRecoveryPath(root, plan.objectRef)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return &Fail{Code: errInternal, Msg: "remove_recovery_cleanup_failed"}

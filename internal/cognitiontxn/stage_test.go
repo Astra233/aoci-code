@@ -301,8 +301,22 @@ func TestEnsureLedgerAppendsTerminalEventOnceAndRefusesConflicts(t *testing.T) {
 	if err := file.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := EnsureLedger(root, true, event); err == nil || !strings.Contains(err.Error(), "cognition_transaction_ledger_corrupt") {
-		t.Fatalf("corrupt Ledger must stop the closure: %v", err)
+	// A line that does not decode is skipped, not a reason to refuse: the
+	// closure owes the presence of its own terminal event, once (#121).
+	if err := EnsureLedger(root, true, event); err != nil {
+		t.Fatalf("a foreign corrupt line must not stop the closure: %v", err)
+	}
+	if count() != 1 {
+		t.Fatalf("closure over a corrupt line appended again: count = %d", count())
+	}
+	fresh := event
+	fresh.RecoveryTransactionID = "tx-2"
+	if err := EnsureLedger(root, true, fresh); err != nil {
+		t.Fatalf("a new terminal event must append past the corrupt line: %v", err)
+	}
+	events, corrupt := ledger.Recent(root, 0)
+	if corrupt != 1 || len(events) != 2 {
+		t.Fatalf("events = %d corrupt = %d", len(events), corrupt)
 	}
 }
 

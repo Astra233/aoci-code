@@ -466,7 +466,10 @@ func TestVolumeFormalWriteEntrypointsFailBeforeMutation(t *testing.T) {
 	if _, fail := planUpdateEntry(root, "main.go", "main.go[CD9S]: F:x | R:- | A:- | S:-"); fail == nil || fail.Code != errVolumeReadOnly {
 		t.Fatalf("update did not fail closed: %#v", fail)
 	}
-	if _, fail := planRemoveEntry(root, "gone.go", false); fail == nil || fail.Code != errVolumeReadOnly {
+	// A plain path names the Code object under Volumes v1 (#112), so the
+	// refusal is the Volume pipeline's own: the object is absent, nothing is
+	// written. The Legacy loader's volume_read_only is no longer the answer.
+	if _, fail := planRemoveEntry(root, "gone.go", false); fail == nil || fail.Code != errBadArgs || fail.FormalWritesStarted {
 		t.Fatalf("remove did not fail closed: %#v", fail)
 	}
 	report := handleReport(root, reportIn{Path: "main.go", Note: "fixture"})
