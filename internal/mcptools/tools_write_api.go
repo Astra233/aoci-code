@@ -13,6 +13,7 @@ import (
 
 	"github.com/aoci-spec/aoci-code/internal/cognition"
 	"github.com/aoci-spec/aoci-code/internal/config"
+	afs "github.com/aoci-spec/aoci-code/internal/fs"
 	"github.com/aoci-spec/aoci-code/internal/ledger"
 	"github.com/aoci-spec/aoci-code/textassets"
 )
@@ -348,6 +349,27 @@ func writeMessage(key string, args ...any) string {
 // Locale. en-US suppresses Han-bearing component diagnostics because exposing
 // an untranslated validator or filesystem message would create a mixed-Locale
 // response. Stable codes, paths, hashes, and ASCII diagnostics remain intact.
+// localizeRelPathError renders a NormalizeRelPath refusal in the active
+// locale; any other error keeps the locale-safe detail treatment.
+func localizeRelPathError(err error) string {
+	// Literal keys: the locale consumer contract scans them statically.
+	switch key, _ := afs.RelPathMessageKey(err); key {
+	case "path.rejected.empty":
+		return writeMessage("path.rejected.empty")
+	case "path.rejected.absolute":
+		return writeMessage("path.rejected.absolute")
+	case "path.rejected.drive":
+		return writeMessage("path.rejected.drive")
+	case "path.rejected.unc":
+		return writeMessage("path.rejected.unc")
+	case "path.rejected.no_target":
+		return writeMessage("path.rejected.no_target")
+	case "path.rejected.escape":
+		return writeMessage("path.rejected.escape")
+	}
+	return localeSafeWriteDetail(err.Error())
+}
+
 func localeSafeWriteDetail(detail string) string {
 	hasHan := strings.ContainsFunc(detail, func(character rune) bool {
 		return unicode.Is(unicode.Han, character)

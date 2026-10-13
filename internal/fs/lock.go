@@ -85,6 +85,10 @@ type Lock struct {
 var lockProcessIdentity = processIdentity
 var writePreparedLockOwner = AtomicWrite
 var afterLockOwnerRead = func() {}
+
+// statOpenedLockOwner is the fstat behind observeLockOwner; a variable only so
+// a test can make it answer the way 9p does for an unlinked file.
+var statOpenedLockOwner = func(file *os.File) (os.FileInfo, error) { return file.Stat() }
 var publishPreparedLockOwner = os.Link
 
 // AcquireIndexLock 获取仓库索引写锁(默认参数)。
@@ -208,14 +212,24 @@ func observeLockOwner(lockPath string) ([]byte, os.FileInfo, bool, error) {
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("打开锁owner失败: %w", err)
 	}
-	info, err := ownerFile.Stat()
+	info, err := statOpenedLockOwner(ownerFile)
 	if err != nil {
 		_ = ownerFile.Close()
+		// A 9p mount (WSL DrvFs) answers ENOENT to fstat on a file unlinked
+		// after it was opened: the owner released between open and stat.
+		// That is the same release the name checks below would report, not
+		// a failure to read the owner (#116 follow-up).
+		if os.IsNotExist(err) || lockOwnerObservationTransient(err) {
+			return nil, nil, false, nil
+		}
 		return nil, nil, false, fmt.Errorf("读取锁owner身份失败: %w", err)
 	}
 	data, err := io.ReadAll(ownerFile)
 	if err != nil {
 		_ = ownerFile.Close()
+		if os.IsNotExist(err) || lockOwnerObservationTransient(err) {
+			return nil, nil, false, nil
+		}
 		return nil, nil, false, fmt.Errorf("读取锁owner内容失败: %w", err)
 	}
 	// Windows不允许删除仍被其他观察者打开的锁文件。身份和正文读完后必须先

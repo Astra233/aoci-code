@@ -45,7 +45,7 @@ func handleReport(
 			writeMessage(
 				"report.path_rejected",
 				in.Path,
-				localeSafeWriteDetail(err.Error()),
+				localizeRelPathError(err),
 			),
 			writeMessage("report.hint.relative_path"),
 		)

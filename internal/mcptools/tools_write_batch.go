@@ -185,7 +185,7 @@ func planUpdateEntriesAtomic(
 			var err error
 			rel, err = afs.NormalizeRelPath(item.Path)
 			if err != nil {
-				return nil, &Fail{Code: errPathUnsafe, Msg: writeMessage("entry.batch.path_invalid", indexPosition+1, item.Path, localeSafeWriteDetail(err.Error())), Hint: writeMessage("entry.batch.hint.paths_relative")}
+				return nil, &Fail{Code: errPathUnsafe, Msg: writeMessage("entry.batch.path_invalid", indexPosition+1, item.Path, localizeRelPathError(err)), Hint: writeMessage("entry.batch.hint.paths_relative")}
 			}
 		}
 		identity := "path:" + rel

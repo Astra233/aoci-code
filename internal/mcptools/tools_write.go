@@ -412,7 +412,7 @@ func planUpdateEntry(
 	if err != nil {
 		return nil, &Fail{
 			Code: errPathUnsafe,
-			Msg:  writeMessage("entry.write.path_rejected", rawPath, localeSafeWriteDetail(err.Error())),
+			Msg:  writeMessage("entry.write.path_rejected", rawPath, localizeRelPathError(err)),
 			Hint: writeMessage("entry.write.hint.relative_path"),
 		}
 	}

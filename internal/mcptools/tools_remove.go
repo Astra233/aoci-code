@@ -181,7 +181,7 @@ func planRemoveEntry(root, rawPath string, orphanOnly bool) (*removePlan, *Fail)
 			Code: "path_unsafe",
 			Msg: writeMessage(
 				"remove.path_invalid",
-				localeSafeWriteDetail(err.Error()),
+				localizeRelPathError(err),
 			),
 			Hint: writeMessage("remove.hint.relative_path"),
 		}

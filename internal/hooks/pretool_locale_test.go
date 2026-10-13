@@ -131,3 +131,24 @@ func TestPretoolMessageReportsCatalogFailures(t *testing.T) {
 		t.Fatalf("a declared key must render: ok=%v text=%q", ok, text)
 	}
 }
+
+// Locks: the unresolved-path line renders the refusal reason from the UI
+// catalog, so an en-US host sees English and a zh-CN host keeps the exact
+// text it had when the reason was a hardcoded Chinese error.
+func TestPretoolUnresolvedPathReasonIsLocalized(t *testing.T) {
+	root := buildRepo(t, false)
+	testkit.PinLocale(t, "zh-CN")
+	if got := HandlePreTool(root, "Edit", "/etc/passwd").Text; got != "aoci hook: 路径未解析(拒绝绝对路径: 只接受仓库相对路径),本次不注入" {
+		t.Fatalf("zh-CN unresolved text = %q", got)
+	}
+	testkit.PinLocale(t, "en-US")
+	got := HandlePreTool(root, "Edit", "/etc/passwd").Text
+	if !strings.HasPrefix(got, "aoci hook: ") || !strings.Contains(got, "an absolute path is refused") {
+		t.Fatalf("en-US unresolved text must carry the English reason: %q", got)
+	}
+	for _, r := range got {
+		if r > 0x7f && r != '⚠' {
+			t.Fatalf("en-US unresolved text must not carry Chinese: %q", got)
+		}
+	}
+}

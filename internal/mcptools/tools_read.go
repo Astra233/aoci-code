@@ -422,7 +422,7 @@ func handleGetEntries(
 					"mcp.entries.unsafe_path",
 					errPathUnsafe,
 					rawPath,
-					localeSafeMCPDetail(err.Error()),
+					localizeRelPathError(err),
 				))
 
 				continue
@@ -475,7 +475,7 @@ func handleGetEntries(
 		if err != nil {
 			return errResult(
 				errPathUnsafe,
-				mcpMessage("mcp.entries.unsafe_dir", input.Dir, localeSafeMCPDetail(err.Error())),
+				mcpMessage("mcp.entries.unsafe_dir", input.Dir, localizeRelPathError(err)),
 				mcpMessage("mcp.entries.unsafe_dir_hint"),
 			)
 		}
@@ -572,7 +572,7 @@ func handleVolumeGetEntries(root, mcpServiceVersion string, input getEntriesIn, 
 	if strings.TrimSpace(input.Dir) != "" {
 		directory, err := afs.NormalizeRelPath(input.Dir)
 		if err != nil {
-			return errResult(errPathUnsafe, mcpMessage("mcp.entries.unsafe_dir", input.Dir, localeSafeMCPDetail(err.Error())), mcpMessage("mcp.entries.unsafe_dir_hint"))
+			return errResult(errPathUnsafe, mcpMessage("mcp.entries.unsafe_dir", input.Dir, localizeRelPathError(err)), mcpMessage("mcp.entries.unsafe_dir_hint"))
 		}
 		directory = strings.TrimSuffix(directory, "/")
 		for _, object := range asset.Objects {
@@ -590,7 +590,7 @@ func handleVolumeGetEntries(root, mcpServiceVersion string, input getEntriesIn, 
 			if volumeID == "code" {
 				normalized, err := afs.NormalizeRelPath(strings.TrimPrefix(ref, "code:"))
 				if err != nil {
-					return errResult(errPathUnsafe, mcpMessage("mcp.entries.unsafe_path", errPathUnsafe, rawRef, localeSafeMCPDetail(err.Error())), mcpMessage("mcp.entries.volume_missing_input_hint"))
+					return errResult(errPathUnsafe, mcpMessage("mcp.entries.unsafe_path", errPathUnsafe, rawRef, localizeRelPathError(err)), mcpMessage("mcp.entries.volume_missing_input_hint"))
 				}
 				ref = "code:" + normalized
 			}

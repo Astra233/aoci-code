@@ -121,6 +121,17 @@ All notable public changes to AOCI-CODE will be documented in this file.
   `mysql:8.4`, each followed by the black-box database lifecycle, and
   `mcp_lifecycle.py --mysql-image mysql:5.7` maps the two 8.0-only statements
   of the frozen fixture to their 5.7 shape in memory.
+- A refused repository path (empty, absolute, drive, UNC, no target, or a
+  `..` escape) is reported in the active locale on the hook, the remove,
+  update, report, and read faces instead of as a Chinese sentence that the
+  en-US filter reduced to "non-localized diagnostic"; the refusals are
+  sentinel errors with machine-token text, and a UNC path is named as such
+  rather than as an absolute path. On a 9p mount (WSL DrvFs) an owner file
+  that vanished between open and fstat failed lock acquisition under
+  contention with "读取锁owner身份失败"; it now reads as a release and the
+  acquisition retries, verified on a real DrvFs mount. The MySQL index
+  projections for 8.0.0–8.0.12 and 8.0.13–8.0.15 were exercised against
+  `mysql:8.0.12` and `mysql:8.0.15` through the database lifecycle suite.
 
 ## v0.1.0-rc20
 

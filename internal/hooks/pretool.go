@@ -56,7 +56,7 @@ func HandlePreTool(
 	if err != nil {
 		text, ok := pretoolMessage(
 			"hook.pretool.path_unresolved",
-			err.Error(),
+			pretoolRelPathReason(err),
 		)
 		if !ok {
 			return PretoolResult{}
@@ -193,6 +193,32 @@ func hookDocument(root, configuredIndexPath, resolvedIndexPath string) *index.Do
 // is fail-open by contract: a catalog failure (unknown key, argument mismatch,
 // damaged bundle) reports ok=false, and HandlePreTool then injects nothing and
 // blocks nothing, exactly as it treats its other environment failures.
+// pretoolRelPathReason localizes a NormalizeRelPath refusal; an unknown
+// error keeps its own text.
+func pretoolRelPathReason(err error) string {
+	var text string
+	var ok bool
+	// Literal keys: the locale consumer contract scans them statically.
+	switch key, _ := afs.RelPathMessageKey(err); key {
+	case "path.rejected.empty":
+		text, ok = pretoolMessage("path.rejected.empty")
+	case "path.rejected.absolute":
+		text, ok = pretoolMessage("path.rejected.absolute")
+	case "path.rejected.drive":
+		text, ok = pretoolMessage("path.rejected.drive")
+	case "path.rejected.unc":
+		text, ok = pretoolMessage("path.rejected.unc")
+	case "path.rejected.no_target":
+		text, ok = pretoolMessage("path.rejected.no_target")
+	case "path.rejected.escape":
+		text, ok = pretoolMessage("path.rejected.escape")
+	}
+	if ok {
+		return text
+	}
+	return err.Error()
+}
+
 func pretoolMessage(key string, args ...any) (string, bool) {
 	text, err := textassets.Message(textassets.ActiveLocale(), key, args...)
 	if err != nil {
