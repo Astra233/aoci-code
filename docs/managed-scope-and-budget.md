@@ -17,7 +17,10 @@ Baseline. The desired configuration is a CAS guard while the Baseline receipt
 owns the active policy identity. `aoci scope status` reports
 `scope_change_required`; run `aoci scope activate` to activate a configuration-only
 change. It uses an empty Candidate Set through the existing preview/apply flow
-and does not edit rules or author Entries. Changes needing model-authored
+and does not edit rules or author Entries. When the desired policy, budget,
+and authorization posture already equal the active receipt and nothing would
+move, it reports `already_aligned` and records no transaction, so an
+`applied` result always names a change. Changes needing model-authored
 candidates still use explicit `scope preview` and `scope apply`.
 
 With `automation.mode=auto` and inherited or explicit Auto approval, run

@@ -24,6 +24,7 @@ import (
 
 type scopePolicyStatus struct {
 	Version               string                      `json:"version"`
+	RepositoryRoot        string                      `json:"repository_root"`
 	Stage                 string                      `json:"stage"`
 	DesiredPolicyIdentity string                      `json:"desired_policy_identity"`
 	ActivePolicyIdentity  string                      `json:"active_policy_identity,omitempty"`
@@ -863,7 +864,7 @@ func buildScopePolicyStatus(root string, includeDrift bool) (*scopePolicyStatus,
 	if err != nil {
 		return nil, err
 	}
-	status := &scopePolicyStatus{Version: machinecontract.ManagedScopeStatusV2, Stage: "aligned", DesiredPolicyIdentity: desired,
+	status := &scopePolicyStatus{Version: machinecontract.ManagedScopeStatusV2, RepositoryRoot: root, Stage: "aligned", DesiredPolicyIdentity: desired,
 		DesiredBudgetIdentity: desiredBudget,
 		Policy:                policy, Evaluation: evaluation, IndexCount: evaluation.IndexCount, ObserveCount: evaluation.ObserveCount,
 		ExcludeCount: evaluation.ExcludeCount, RequiresHumanReview: evaluation.RequiredHumanReview,

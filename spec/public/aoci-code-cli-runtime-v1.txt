@@ -97,6 +97,11 @@ building an empty `managed-scope-candidate-set/v1` through the existing Scope
 Change preview and Apply pipeline. It accepts no positional arguments or
 command-specific flags, edits no rules, and authors no Entries. It preserves
 the existing authorization, validation, lock, CAS, and recovery decisions.
+When the desired policy, budget, and authorization posture already equal the
+active Baseline receipt and the Plan moves no object, Entry, or fingerprint,
+activation reports `already_aligned` with exit status 0, starts no formal
+write, and records no transaction. `scope status` and `scope show` carry
+`repository_root`, the root the reading was taken from.
 In particular, Legacy stale sources still require explicit Entry candidates;
 Volumes source drift remains available to subsequent ordinary maintenance.
 

@@ -242,3 +242,42 @@ func TestScopeActivateHelpIsLocalized(t *testing.T) {
 		})
 	}
 }
+
+// Locks (#113): when the desired policy, budget, and posture already equal the
+// active receipt, activation reports already_aligned with exit 0 and records
+// no transaction; it used to run Apply and file a zero-change transaction
+// that read as a plain "applied".
+func TestScopeActivateReportsAlreadyAlignedWithoutATransaction(t *testing.T) {
+	root := scopeActivationFixture(t)
+	history := filepath.Join(root, ".aoci", "transactions", "history")
+	countHistory := func() int {
+		entries, err := os.ReadDir(history)
+		if err != nil {
+			return 0
+		}
+		return len(entries)
+	}
+	before := countHistory()
+	files := activationFiles(t, root, ".aoci/baseline.json", ".aoci/config.json")
+	code, out := activateJSON(t, root)
+	if code != ExitOK || !strings.Contains(string(out), `"status": "already_aligned"`) || !strings.Contains(string(out), `"formal_writes_started": false`) {
+		t.Fatalf("aligned activation must report already_aligned: code=%d out=%s", code, out)
+	}
+	if countHistory() != before {
+		t.Fatalf("aligned activation recorded a transaction: %d -> %d", before, countHistory())
+	}
+	assertActivationFiles(t, root, files)
+	var outText, errs bytes.Buffer
+	if code := executeCLI([]string{"--repo", root, "scope", "activate"}, &outText, &errs); code != ExitOK || !strings.Contains(outText.String(), "already_aligned") {
+		t.Fatalf("human output must name already_aligned: code=%d out=%s err=%s", code, &outText, &errs)
+	}
+	var status map[string]any
+	outText.Reset()
+	errs.Reset()
+	if code := executeCLI([]string{"--repo", root, "--json", "scope", "status"}, &outText, &errs); code != ExitOK {
+		t.Fatalf("scope status: code=%d err=%s", code, &errs)
+	}
+	if err := json.Unmarshal(outText.Bytes(), &status); err != nil || status["repository_root"] != root {
+		t.Fatalf("scope status must carry repository_root: err=%v out=%s", err, &outText)
+	}
+}

@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/aoci-spec/aoci-code/internal/baseline"
 	"github.com/aoci-spec/aoci-code/internal/cognitiontxn"
 	"github.com/aoci-spec/aoci-code/internal/machinecontract"
 	"github.com/aoci-spec/aoci-code/internal/scopechange"
@@ -39,12 +41,72 @@ func newScopeActivateCmd() *cobra.Command {
 			if preview.Plan.InteractionRequired {
 				return pauseScopeActivation(cmd, root, preview)
 			}
+			aligned, err := scopeActivationAlreadyAligned(root, &preview.Plan)
+			if err != nil {
+				return managedScopeExitError(err)
+			}
+			if aligned {
+				return writeScopeActivationAligned(cmd, &preview.Plan)
+			}
 			result, err := scopechange.Apply(root, preview, nil)
 			if err != nil {
 				return managedScopeExitError(err)
 			}
 			return writeScopeChangeResult(cmd, result)
 		}}
+}
+
+// scopeActivationAligned is the activation result when there is nothing to
+// activate: no transaction is recorded and no formal write starts.
+type scopeActivationAligned struct {
+	Status               string `json:"status"`
+	FormalWritesStarted  bool   `json:"formal_writes_started"`
+	PolicyIdentity       string `json:"policy_identity"`
+	BudgetPolicyIdentity string `json:"budget_policy_identity"`
+	NetworkAccessed      bool   `json:"network_accessed"`
+}
+
+// scopeActivationAlreadyAligned reports whether the desired policy, budget,
+// and authorization posture already equal the active receipt and the Plan
+// moves no object, Entry, or fingerprint. Apply used to run regardless and
+// recorded a transaction whose old and new identities were equal and whose
+// change lists were empty, which read as a plain "applied" (#113). An active
+// receipt without a recorded posture is left to Apply, which records one.
+func scopeActivationAlreadyAligned(root string, plan *scopechange.Plan) (bool, error) {
+	state, exists, err := baseline.Load(root)
+	if err != nil {
+		return false, err
+	}
+	if !exists || state.ManagedScope == nil {
+		return false, nil
+	}
+	active := state.ManagedScope
+	if active.PolicyIdentity != plan.NewPolicyIdentity || plan.OldPolicyIdentity != plan.NewPolicyIdentity {
+		return false, nil
+	}
+	if active.BudgetPolicyIdentity != plan.NewBudgetPolicyIdentity ||
+		(plan.OldBudgetPolicyIdentity != "" && plan.OldBudgetPolicyIdentity != plan.NewBudgetPolicyIdentity) {
+		return false, nil
+	}
+	if active.ApplyAuthorizationMode == "" || active.ApplyAuthorizationMode != plan.AuthorizationPolicy.EffectiveMode {
+		return false, nil
+	}
+	moved := len(plan.IndexAdded) + len(plan.IndexRemoved) + len(plan.ObserveAdded) + len(plan.ObserveRemoved) +
+		len(plan.ExcludeAdded) + len(plan.ExcludeRemoved) + len(plan.RoleChanges) + len(plan.CoverageReductions) +
+		len(plan.EntryCreates) + len(plan.EntryRemoves) + len(plan.EntryUpdates) +
+		len(plan.BaselineAdded) + len(plan.BaselineRemoved) +
+		len(plan.ObserveFingerprintAdded) + len(plan.ObserveFingerprintRemoved)
+	return moved == 0, nil
+}
+
+func writeScopeActivationAligned(cmd *cobra.Command, plan *scopechange.Plan) error {
+	result := scopeActivationAligned{Status: "already_aligned", PolicyIdentity: plan.NewPolicyIdentity,
+		BudgetPolicyIdentity: plan.NewBudgetPolicyIdentity}
+	if flagJSON {
+		return writePlannerJSON(cmd, result)
+	}
+	fmt.Fprintln(cmd.OutOrStdout(), cliMessage("scope.activate_already_aligned", result.PolicyIdentity))
+	return nil
 }
 
 func pauseScopeActivation(cmd *cobra.Command, root string, preview *scopechange.Preview) error {
