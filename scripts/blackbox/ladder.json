@@ -15,7 +15,7 @@
    "last_verified": {
     "version": "v0.1.0-rc20",
     "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
    }
   },
   {
@@ -33,7 +33,7 @@
    "last_verified": {
     "version": "v0.1.0-rc20",
     "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
    }
   },
   {
@@ -52,7 +52,7 @@
    "last_verified": {
     "version": "v0.1.0-rc20",
     "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
    }
   },
   {
@@ -72,7 +72,7 @@
    "last_verified": {
     "version": "v0.1.0-rc20",
     "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
    }
   },
   {
@@ -89,7 +89,7 @@
    "last_verified": {
     "version": "v0.1.0-rc20",
     "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
    }
   },
   {
@@ -107,7 +107,7 @@
    "last_verified": {
     "version": "v0.1.0-rc20",
     "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
    }
   },
   {
@@ -171,7 +171,7 @@
    "last_verified": {
     "version": "v0.1.0-rc20",
     "date": "2026-10-13",
-    "evidence": "make axis-self on main 1b1acb8 (candidate as v0.1.0-rc20): RESULT 80 passed"
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
    }
   },
   {
@@ -283,7 +283,7 @@
    "last_verified": {
     "version": "v0.1.0-rc20",
     "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
    }
   },
   {
@@ -316,7 +316,7 @@
    "last_verified": {
     "version": "v0.1.0-rc20",
     "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on main bbac410 (.aoci/dev-tools/make-verify-testbatch.txt); CI full-confidence 38294486403 green on ba20319"
+    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
    }
   }
  ]
