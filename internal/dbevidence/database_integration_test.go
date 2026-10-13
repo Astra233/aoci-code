@@ -150,10 +150,12 @@ func TestMySQLRealCatalogCollectionAndDrift(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer admin.Close()
+	reported, serverVersion := mysqlRealServerVersion(t, admin)
+	profile := mysqlRealAcceptanceProfileFor(t, reported, serverVersion)
 	mysqlSetup := []string{
 		`DROP TABLE IF EXISTS orders`, `DROP TABLE IF EXISTS accounts`, `DROP TABLE IF EXISTS audit_events`, "DROP TABLE IF EXISTS `Order Items`", "DROP TABLE IF EXISTS `select`", `DROP TABLE IF EXISTS new_table`,
 		`CREATE TABLE accounts (id bigint NOT NULL AUTO_INCREMENT, email varchar(255) NOT NULL, status varchar(20) NOT NULL DEFAULT 'active', payload json, email_lower varchar(255) GENERATED ALWAYS AS (lower(email)) STORED, PRIMARY KEY (id), UNIQUE KEY accounts_id_status_key (id, status), UNIQUE KEY accounts_email_key (email), CONSTRAINT accounts_status_check CHECK (status IN ('active','disabled'))) ENGINE=InnoDB`,
-		`CREATE TABLE orders (account_id bigint NOT NULL, account_status varchar(20) NOT NULL, seq int NOT NULL, note varchar(255), payload json, PRIMARY KEY (account_id, seq), CONSTRAINT orders_account_fk FOREIGN KEY (account_id, account_status) REFERENCES accounts(id, status) ON UPDATE CASCADE ON DELETE RESTRICT, KEY orders_note_prefix_idx (note(12)), KEY orders_payload_visible_idx (account_id, seq DESC), KEY orders_invisible_idx (account_status) INVISIBLE) ENGINE=InnoDB`,
+		`CREATE TABLE orders (account_id bigint NOT NULL, account_status varchar(20) NOT NULL, seq int NOT NULL, note varchar(255), payload json, PRIMARY KEY (account_id, seq), CONSTRAINT orders_account_fk FOREIGN KEY (account_id, account_status) REFERENCES accounts(id, status) ON UPDATE CASCADE ON DELETE RESTRICT, KEY orders_note_prefix_idx (note(12)), KEY orders_payload_visible_idx (account_id, seq DESC), KEY orders_invisible_idx (account_status)` + profile.invisibleClause + `) ENGINE=InnoDB`,
 		"CREATE TABLE `Order Items` (`select` int NOT NULL PRIMARY KEY, `MixedCase` varchar(20)) ENGINE=InnoDB",
 		"CREATE TABLE `select` (id int NOT NULL PRIMARY KEY) ENGINE=InnoDB",
 		`CREATE TABLE audit_events (event_id bigint NOT NULL, event_year int NOT NULL, payload json, PRIMARY KEY (event_id, event_year)) ENGINE=InnoDB PARTITION BY RANGE (event_year) (PARTITION p2025 VALUES LESS THAN (2026), PARTITION pmax VALUES LESS THAN MAXVALUE)`,
@@ -172,17 +174,21 @@ func TestMySQLRealCatalogCollectionAndDrift(t *testing.T) {
 	execIntegrationSQL(t, admin, mysqlSetup)
 	defer execIntegrationSQL(t, admin, []string{`DROP USER IF EXISTS 'aoci_d0_reader'@'%'`, `DROP USER IF EXISTS 'aoci_d0_partial'@'%'`, `DROP USER IF EXISTS 'aoci_d0_interrupt'@'%'`})
 	t.Setenv("AOCI_TEST_DATABASE_DSN", readerDSN)
-	source := SourceConfig{SourceID: "mysqltemp", Engine: EngineMySQL, Database: "aoci_test", Namespaces: []string{"aoci_test"}, CredentialEnv: "AOCI_TEST_DATABASE_DSN", Enabled: true}
+	source := SourceConfig{SourceID: profile.sourceID, Engine: EngineMySQL, Database: "aoci_test", Namespaces: []string{"aoci_test"}, CredentialEnv: "AOCI_TEST_DATABASE_DSN", Enabled: true}
 	collector := NewCollector()
 	manifest, first, files, err := collector.Snapshot(context.Background(), source)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if manifest.ServerVersion != normalizeCatalogText(reported) {
+		t.Fatalf("manifest recorded server version %q, want %q", manifest.ServerVersion, reported)
+	}
 	assertIntegrationEvidence(t, manifest, first, files, 5, credentialSentinel)
-	assertEvidenceContains(t, files,
-		`database://mysqltemp/aoci_test/Order%20Items`, `"auto_increment": true`,
-		`"generated": "stored"`, `orders_account_fk`, `accounts_status_check`,
-		`"prefix_length": 12`, `"visible": false`, `"descending": true`, `"definitions":`, `json`)
+	assertEvidenceContains(t, files, append([]string{
+		`database://` + source.SourceID + `/aoci_test/Order%20Items`, `"auto_increment": true`,
+		`"generated": "stored"`, `orders_account_fk`, `"prefix_length": 12`, `"definitions":`, `json`,
+	}, profile.present...)...)
+	assertEvidenceOmits(t, files, profile.absent...)
 	assertSystemNamespacesExcluded(t, first, "information_schema", "mysql", "performance_schema", "sys")
 	_, repeated, repeatedFiles, err := collector.Snapshot(context.Background(), source)
 	if err != nil {
@@ -216,9 +222,9 @@ func TestMySQLRealCatalogCollectionAndDrift(t *testing.T) {
 	if report.Summary.Changed != 1 || report.Summary.New != 1 || report.Summary.Removed != 1 {
 		t.Fatalf("unexpected MySQL drift: %+v", report)
 	}
-	assertUnrelatedTableStable(t, first, second, "database://mysqltemp/aoci_test/orders")
+	assertUnrelatedTableStable(t, first, second, "database://"+source.SourceID+"/aoci_test/orders")
 	assertBaselineUnchanged(t, root, baselineBytes)
-	logRealAcceptance(t, "mysql", first, baseline, report, "database://mysqltemp/aoci_test/accounts", files)
+	logRealAcceptance(t, "mysql", first, baseline, report, "database://"+source.SourceID+"/aoci_test/accounts", files)
 	assertNoIntegrationSentinels(t, manifest, second, secondFiles, credentialSentinel)
 }
 
@@ -960,6 +966,9 @@ func assertSavedEvidenceSurvivesFailure(t *testing.T, root string, collector *Co
 
 func logRealAcceptance(t *testing.T, engine string, snapshot Snapshot, baseline Baseline, drift DriftReport, objectRef string, files map[string][]byte) {
 	t.Helper()
+	// Logged before the Golden comparison so a run against a release without a
+	// reviewed Golden still shows the exact bytes a reviewer would mint it from.
+	t.Logf("canonical_table_evidence engine=%s object_ref=%s base64=%s", engine, objectRef, base64.StdEncoding.EncodeToString(files[objectRef]))
 	assertRealAcceptanceGolden(t, engine, snapshot, drift, objectRef, files)
 	record := snapshotRecord(t, snapshot, objectRef)
 	var acceptedSHA string
@@ -984,7 +993,6 @@ func logRealAcceptance(t *testing.T, engine string, snapshot Snapshot, baseline 
 		t.Fatal("Evidence Bundle contained generated FRAS or business row data")
 	}
 	t.Logf("database_acceptance engine=%s object_ref=%s table_evidence_sha256=%s source_snapshot_sha256=%s baseline_source_snapshot_sha256=%s tables=%d drift_unchanged=%d drift_new=%d drift_changed=%d drift_removed=%d business_data_read=false", engine, objectRef, record.TableEvidenceSHA256, snapshot.SourceSnapshotSHA256, acceptedSHA, len(snapshot.Tables), drift.Summary.Unchanged, drift.Summary.New, drift.Summary.Changed, drift.Summary.Removed)
-	t.Logf("canonical_table_evidence engine=%s base64=%s", engine, base64.StdEncoding.EncodeToString(files[objectRef]))
 }
 
 func assertRealAcceptanceGolden(t *testing.T, engine string, snapshot Snapshot, drift DriftReport, objectRef string, files map[string][]byte) {
@@ -1070,7 +1078,7 @@ func assertMySQLVisibilityBoundary(t *testing.T, adminDSN, credential string, co
 	if len(snapshot.Tables) != 2 {
 		t.Fatalf("MySQL partial reader saw %d tables, want 2", len(snapshot.Tables))
 	}
-	for _, objectRef := range []string{"database://mysqltemp/aoci_test/accounts", "database://mysqltemp/aoci_test/orders"} {
+	for _, objectRef := range []string{"database://" + source.SourceID + "/aoci_test/accounts", "database://" + source.SourceID + "/aoci_test/orders"} {
 		_ = snapshotRecord(t, snapshot, objectRef)
 	}
 	admin, err := sql.Open("mysql", adminDSN)
@@ -1400,6 +1408,64 @@ func assertEvidenceContains(t *testing.T, files map[string][]byte, fragments ...
 		if !strings.Contains(combined.String(), fragment) {
 			t.Fatalf("integration Evidence omitted %q", fragment)
 		}
+	}
+}
+
+func assertEvidenceOmits(t *testing.T, files map[string][]byte, fragments ...string) {
+	t.Helper()
+	var combined strings.Builder
+	for _, data := range files {
+		combined.Write(data)
+	}
+	for _, fragment := range fragments {
+		if strings.Contains(combined.String(), fragment) {
+			t.Fatalf("integration Evidence recorded %q, which this server cannot store", fragment)
+		}
+	}
+}
+
+// mysqlRealAcceptanceProfile is what the frozen fixture and its reviewed Golden
+// look like on each MySQL release the acceptance contract runs against. The
+// source ID keys the Golden, as the two openGauss compatibility profiles do.
+type mysqlRealAcceptanceProfile struct {
+	sourceID        string
+	invisibleClause string   // "" before 8.0: that release cannot parse INVISIBLE
+	present, absent []string // Evidence fragments the release must and must not record
+}
+
+func mysqlRealServerVersion(t *testing.T, admin *sql.DB) (string, mysqlServerVersion) {
+	t.Helper()
+	var reported string
+	if err := admin.QueryRowContext(context.Background(), `SELECT VERSION()`).Scan(&reported); err != nil {
+		t.Fatal("temporary MySQL server version probe failed")
+	}
+	version, err := parseMySQLServerVersion(reported)
+	if err != nil {
+		t.Fatalf("temporary MySQL server reports %q, which is not a supported MySQL release: %v", reported, err)
+	}
+	return reported, version
+}
+
+func mysqlRealAcceptanceProfileFor(t *testing.T, reported string, version mysqlServerVersion) mysqlRealAcceptanceProfile {
+	t.Helper()
+	switch {
+	case version.atLeast(mysqlCheckConstraintVersion):
+		return mysqlRealAcceptanceProfile{
+			sourceID: "mysqltemp", invisibleClause: " INVISIBLE",
+			present: []string{`accounts_status_check`, `"visible": false`, `"descending": true`},
+		}
+	case !version.atLeast(mysqlIndexVisibilityVersion):
+		// 5.7 parses the CHECK clause and stores nothing, cannot parse INVISIBLE,
+		// and parses DESC without storing it, so the exact facts are an empty
+		// check list, every index visible, and ascending elements.
+		return mysqlRealAcceptanceProfile{
+			sourceID: "mysql57temp",
+			present:  []string{`"checks": []`, `"visible": true`},
+			absent:   []string{`accounts_status_check`, `"visible": false`, `"descending": true`},
+		}
+	default:
+		t.Fatalf("no reviewed real-engine Golden covers MySQL %s; the acceptance contract runs on 5.7 and on 8.0.16 or later", reported)
+		return mysqlRealAcceptanceProfile{}
 	}
 }
 

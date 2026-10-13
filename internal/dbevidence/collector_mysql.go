@@ -7,10 +7,19 @@ import (
 	"strings"
 )
 
+type mysqlCatalogLoader struct {
+	name string
+	load func(context.Context, *sql.Tx, SourceConfig, map[string]*TableEvidence) error
+}
+
 func collectMySQL(ctx context.Context, tx *sql.Tx, source SourceConfig, inspectOnly bool) (string, int, []TableEvidence, error) {
 	var serverVersion string
 	var lowerCaseTableNames int
 	if err := queryRow(ctx, tx, mysqlFactsSQL).Scan(&serverVersion, &lowerCaseTableNames); err != nil {
+		return "", 0, nil, wrapCatalogQuery("facts", err)
+	}
+	profile, err := mysqlCatalogProfileFor(serverVersion)
+	if err != nil {
 		return "", 0, nil, wrapCatalogQuery("facts", err)
 	}
 	if lowerCaseTableNames < 0 || lowerCaseTableNames > 2 {
@@ -21,19 +30,22 @@ func collectMySQL(ctx context.Context, tx *sql.Tx, source SourceConfig, inspectO
 	if err != nil || inspectOnly {
 		return serverVersion, lowerCaseTableNames, sortedTableValues(tables), err
 	}
-	for _, loader := range []struct {
-		name string
-		load func(context.Context, *sql.Tx, SourceConfig, map[string]*TableEvidence) error
-	}{
-		{"columns", mysqlColumns}, {"keys", mysqlKeys},
-		{"foreign_keys", mysqlForeignKeys}, {"checks", mysqlChecks},
-		{"indexes", mysqlIndexes}, {"partitions", mysqlPartitions},
-	} {
+	for _, loader := range profile.loaders() {
 		if err := loader.load(ctx, tx, source, tables); err != nil {
 			return "", 0, nil, wrapCatalogQuery(loader.name, err)
 		}
 	}
 	return serverVersion, lowerCaseTableNames, sortedTableValues(tables), nil
+}
+
+// loaders keeps the shared order; only the check step and the STATISTICS
+// projection follow the server version.
+func (profile mysqlCatalogProfile) loaders() []mysqlCatalogLoader {
+	loaders := []mysqlCatalogLoader{{"columns", mysqlColumns}, {"keys", mysqlKeys}, {"foreign_keys", mysqlForeignKeys}}
+	if profile.checks {
+		loaders = append(loaders, mysqlCatalogLoader{"checks", mysqlChecks})
+	}
+	return append(loaders, mysqlCatalogLoader{"indexes", mysqlIndexLoader(profile.indexesSQL)}, mysqlCatalogLoader{"partitions", mysqlPartitions})
 }
 
 func mysqlTables(ctx context.Context, tx *sql.Tx, source SourceConfig) (map[string]*TableEvidence, error) {
@@ -216,8 +228,14 @@ func mysqlChecks(ctx context.Context, tx *sql.Tx, _ SourceConfig, tables map[str
 	return rows.Err()
 }
 
-func mysqlIndexes(ctx context.Context, tx *sql.Tx, _ SourceConfig, tables map[string]*TableEvidence) error {
-	rows, err := queryRows(ctx, tx, mysqlIndexesSQL)
+func mysqlIndexLoader(query string) func(context.Context, *sql.Tx, SourceConfig, map[string]*TableEvidence) error {
+	return func(ctx context.Context, tx *sql.Tx, _ SourceConfig, tables map[string]*TableEvidence) error {
+		return mysqlIndexes(ctx, tx, query, tables)
+	}
+}
+
+func mysqlIndexes(ctx context.Context, tx *sql.Tx, query string, tables map[string]*TableEvidence) error {
+	rows, err := queryRows(ctx, tx, query)
 	if err != nil {
 		return err
 	}

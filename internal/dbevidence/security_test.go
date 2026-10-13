@@ -71,6 +71,8 @@ func catalogQueries() []catalogQuery {
 		{EngineMySQL, "foreign_keys", mysqlForeignKeysSQL},
 		{EngineMySQL, "checks", mysqlChecksSQL},
 		{EngineMySQL, "indexes", mysqlIndexesSQL},
+		{EngineMySQL, "indexes_pre8013", mysqlIndexesPre8013SQL},
+		{EngineMySQL, "indexes_pre80", mysqlIndexesPre80SQL},
 		{EngineMySQL, "partitions", mysqlPartitionsSQL},
 		{EngineOpenGauss, "facts", openGaussFactsSQL},
 		{EngineOpenGauss, "tables", openGaussTablesSQL},
@@ -86,7 +88,7 @@ func catalogQueries() []catalogQuery {
 
 func TestCatalogQueriesStayInsideMetadataBoundary(t *testing.T) {
 	queries := catalogQueries()
-	if len(queries) != 26 {
+	if len(queries) != 28 {
 		t.Fatalf("unexpected query inventory: %d", len(queries))
 	}
 	for _, query := range queries {

@@ -72,6 +72,19 @@ visible selected object uses an unsupported catalog feature, collection fails
 closed with unsupported_catalog_feature; it never silently omits or rewrites
 that fact as PostgreSQL evidence.
 
+The MySQL collector supports MySQL 5.7.6 and later. The version reported by
+VERSION() selects two queries of the inventory; everything else is shared by
+every supported release. The CHECK constraint query runs only from 8.0.16,
+where information_schema.CHECK_CONSTRAINTS exists; an older server parses a
+CHECK clause and stores nothing, so its empty check list is the exact fact.
+The index query reads STATISTICS.EXPRESSION from 8.0.13 and
+STATISTICS.IS_VISIBLE from 8.0.0; an older server runs a projection of the
+same shape that records NULL and YES, which is all it can have. Canonical
+Table Evidence therefore has one shape on every supported release. A server
+below 5.7.6, a version that cannot be read as major.minor.patch, or MariaDB
+fails closed with unsupported_catalog_feature before any table query; MariaDB
+and other forks are not supported.
+
 4. Canonical object identity
 
 PostgreSQL, MySQL, and openGauss table identities use:
@@ -227,8 +240,8 @@ does not impersonate both. See aoci-database-cognition-authoring-v1.txt.
 
 9. Real-engine acceptance evidence
 
-The integration contract runs against disposable PostgreSQL 18, MySQL 8.4,
-and openGauss 6.0.5 LTS instances. Test-only administrators prepare schemas,
+The integration contract runs against disposable PostgreSQL 18, MySQL 5.7
+and 8.4, and openGauss 6.0.5 LTS instances. Test-only administrators prepare schemas,
 permissions, structural changes, and sentinel rows; the product Collector
 receives a distinct runtime-randomized read-only credential and executes only
 the applicable catalog query inventory. Test setup DDL/DML is not Collector
