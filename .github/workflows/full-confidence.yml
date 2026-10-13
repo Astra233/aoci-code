@@ -277,9 +277,19 @@ jobs:
   mysql-integration:
     timeout-minutes: 30
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The collector gates its 8.0-only catalog columns by server version
+        # (STATISTICS.IS_VISIBLE 8.0.0, STATISTICS.EXPRESSION 8.0.13,
+        # CHECK_CONSTRAINTS 8.0.16). mysql:5.7 is the frozen last 5.7 release
+        # and proves the pre-8.0 inventory on a real engine; mysql:8.4 proves
+        # the full one. Each leg reads the server version itself, so the
+        # contract with the test stays the admin address, user, and database.
+        mysql-image: ['mysql:5.7', 'mysql:8.4']
     services:
       mysql:
-        image: mysql:8.4
+        image: ${{ matrix.mysql-image }}
         env:
           MYSQL_ALLOW_EMPTY_PASSWORD: yes
           MYSQL_DATABASE: aoci_test
@@ -293,12 +303,21 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: MySQL read-only Evidence integration
+      - name: MySQL read-only Evidence integration (${{ matrix.mysql-image }})
         env:
           AOCI_TEST_MYSQL_ADMIN_ADDR: 127.0.0.1:3306
           AOCI_TEST_MYSQL_ADMIN_USER: root
           AOCI_TEST_MYSQL_ADMIN_DATABASE: aoci_test
         run: go test -v -tags=integration -count=1 -run TestMySQLRealCatalogCollectionAndDrift ./internal/dbevidence
+      # The black-box database suite starts its own container from the same
+      # image (already pulled for the service above) on a free port, so the
+      # harness's in-memory 5.7 fixture rewrite is proved on every leg, not
+      # only the 8.4 default that linux-full runs.
+      - name: black-box database lifecycle (${{ matrix.mysql-image }})
+        run: |
+          make build
+          python3 scripts/blackbox/mcp_lifecycle.py --suites database --mysql-image '${{ matrix.mysql-image }}'
+          git diff --exit-code
 
   opengauss-integration:
     runs-on: ubuntu-latest

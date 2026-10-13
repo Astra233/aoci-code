@@ -115,7 +115,7 @@ always excluded as object namespaces.
 
 ## MySQL collector
 
-The MySQL collector targets MySQL 8.0+ catalog fields and records:
+The MySQL collector supports MySQL 5.7.6 and later and records:
 
 - the exact catalog spelling and `lower_case_table_names` value;
 - ordinal columns, `COLUMN_TYPE`, normalized data type, nullability, default,
@@ -125,6 +125,20 @@ The MySQL collector targets MySQL 8.0+ catalog fields and records:
 - index uniqueness, order, column or expression, prefix length, descending
   direction, index method, and visibility;
 - partition method/expression and ordered partition definitions.
+
+The server version reported by `VERSION()` selects two of those queries;
+everything else is shared by every supported release.
+`information_schema.CHECK_CONSTRAINTS` exists from 8.0.16, so the check query
+runs only there. An older server parses a `CHECK` clause and stores nothing,
+so its empty check list is the exact fact, not a loss. `STATISTICS.EXPRESSION`
+exists from 8.0.13 and `STATISTICS.IS_VISIBLE` from 8.0.0; an older server
+runs a projection of the same shape that records `NULL` for the expression
+and `YES` for visibility, which is all it can have. Canonical Table Evidence
+therefore has one shape on every supported release. A server below 5.7.6, a
+version that cannot be read as `major.minor.patch`, or MariaDB fails closed
+with `unsupported_catalog_feature` (`catalog_query_facts_mysql_version` or
+`catalog_query_facts_mysql_variant`) before any table query. MariaDB and other
+forks are not supported.
 
 `information_schema`, `mysql`, `performance_schema`, and `sys` are always
 excluded as object namespaces. MySQL v1 intentionally treats one configured
@@ -260,9 +274,12 @@ Locale parity, and CLI JSON.
 ## Real PostgreSQL, MySQL, and openGauss acceptance
 
 Separate Linux CI jobs run the integration contract against disposable
-PostgreSQL 18, MySQL 8.4, and openGauss 6.0.5 LTS instances. The PostgreSQL job
-starts an isolated container after masking its runtime-randomized administrator
-password; the MySQL service uses an isolated test-only instance. The openGauss
+PostgreSQL 18, MySQL 5.7 and 8.4, and openGauss 6.0.5 LTS instances. The
+PostgreSQL job starts an isolated container after masking its
+runtime-randomized administrator password; the MySQL job runs once per image,
+`mysql:5.7` and `mysql:8.4`, each as an isolated test-only service instance,
+and then drives the black-box `database` lifecycle suite against the same
+image. The openGauss
 job downloads the project's official 6.0.5 x86_64 Docker tar, verifies the
 publisher-provided SHA-256 pinned in the workflow, and only then loads the
 `opengauss:6.0.5` image. It does not use a floating registry tag or present the
@@ -285,7 +302,10 @@ lower_case_table_names fact and covers quoted and reserved identifiers,
 composite keys and foreign keys, unique and check constraints, JSON,
 auto_increment and generated columns, ordinary, composite, prefix, descending
 and invisible indexes, partitions, system-database exclusion, partial
-visibility, failure cases, and a killed collection connection.
+visibility, failure cases, and a killed collection connection. On 5.7 the same
+fixture omits the `INVISIBLE` clause, which that release cannot parse, and
+expects what 5.7 stores: an empty check list, every index visible, and
+ascending elements.
 
 The openGauss fixture proves the exact 6.0.5 A/PG profile, quoted identifiers,
 multiple schemas and same-name tables, ordinary v1 keys, constraints and
@@ -306,8 +326,11 @@ and failure paths that preserve the last valid Evidence and Baseline. The
 reviewed canonical Goldens are
 `internal/dbevidence/testdata/real/postgresql_accounts.json` with SHA-256
 `d4a04d14f0cca18478e33a86c2988f862457ace07c3b6f865e888ddf4f362c04`
-and `internal/dbevidence/testdata/real/mysql_accounts.json` with SHA-256
-`79f1de81b949fd5de0e3d8a53042cbfb28aeb014a8234ced266ab694453c346a`;
+`internal/dbevidence/testdata/real/mysql_accounts.json` with SHA-256
+`79f1de81b949fd5de0e3d8a53042cbfb28aeb014a8234ced266ab694453c346a`,
+and `internal/dbevidence/testdata/real/mysql57_accounts.json` (the same fixture
+on MySQL 5.7) with SHA-256
+`c03595d75efad745d84aa9d6ba024977f3395fcdd0eef67d23f4c4c08fa0cba7`;
 the openGauss A and PG fixtures are
 `internal/dbevidence/testdata/real/opengauss_a_accounts.json` with SHA-256
 `563e92b64b3144d03455026ca03b9aa0f7ecced003809da4b61d7d7ab148fca6`

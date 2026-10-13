@@ -15,6 +15,8 @@ init→漂移→重对齐全程；repo-c 只到 aligned，不注入漂移，它�
     incremental  模板条目建索引→改/增/删/换行符 四类增量维护      (repo-a)
     database     MySQL 证据全链: source→snapshot→accept→bootstrap→
                  模板表FRAS→v2 ALTER 漂移→重对齐 (含 inventory 离线语义) (repo-b)
+                 默认 mysql:8.4; --mysql-image mysql:5.7 跑同一套断言, 夹具里
+                 两条 8.0 专有语句在内存里映射成 5.7 形态 (MYSQL57_FIXTURE_REWRITES)
     governance   Curation 探针(空/超限/二进制)不得成为普通候选     (repo-a)
     scale        453 对象的多批滚动 + 关系闭包三模式(无关系/分层DAG/
                  大强连通簇); 团队批量显式抬到线上上限 200 后跑，
@@ -30,6 +32,7 @@ Usage:
   python3 scripts/blackbox/mcp_lifecycle.py --model opencode/claude-sonnet-5
   python3 scripts/blackbox/mcp_lifecycle.py --model opencode/deepseek-v4-pro \
       --suites establish --model-timeout 1800
+  python3 scripts/blackbox/mcp_lifecycle.py --suites database --mysql-image mysql:5.7
   python3 scripts/blackbox/mcp_lifecycle.py --compare results/A.json results/B.json
 
 Env:  AOCI_REPO / AOCI_BIN / AOCI_OPENCODE 覆盖仓库、二进制与 opencode 路径。
@@ -309,13 +312,47 @@ def author_all(fx, max_rounds=30):
 
 
 # ---------------------------------------------------------------- mysql
+# MySQL 5.7 cannot parse the two 8.0-only statements in the frozen repo-b
+# schema (fixtures are never edited; the rewrite happens in memory). Each is
+# mapped to the nearest 5.7 state: an invisible index is one the optimizer
+# never uses, so on 5.7 it does not exist in v1 and is added in v2, where 8.x
+# makes it visible. The drift arithmetic is therefore the same on both
+# releases (customers changed, products changed, shipments new) and no
+# assertion below is weakened. Every anchor must occur exactly once, so a
+# fixture edit cannot silently send 8.x SQL to a 5.7 server.
+MYSQL57_FIXTURE_REWRITES = {
+    "init.sql": [(",\n    KEY idx_products_name (name) INVISIBLE", "")],
+    "v2_alter.sql": [("ALTER TABLE products ALTER INDEX idx_products_name VISIBLE;",
+                      "ALTER TABLE products ADD INDEX idx_products_name (name);")],
+}
+
+
+def mysql57_fixture_sql(name, sql):
+    for old, new in MYSQL57_FIXTURE_REWRITES.get(name, []):
+        if sql.count(old) != 1:
+            raise RuntimeError(f"{name}: 5.7 rewrite anchor occurs {sql.count(old)} times: {old!r}")
+        sql = sql.replace(old, new)
+    return sql
+
+
 class MySQLBox:
     def __init__(self, image, run_id):
         self.image, self.name = image, f"aoci-lc-mysql-{run_id}"
         self.port, self.pw, self.db = None, "lcpass", "aoci_shop"
+        self.server_version, self.major = "", 0
 
     def dsn(self):
         return f"root:{self.pw}@tcp(127.0.0.1:{self.port})/{self.db}"
+
+    def probe_version(self):
+        r = subprocess.run(["docker", "exec", self.name, "mysql", "-uroot", f"-p{self.pw}",
+                            "-N", "-s", "-e", "SELECT VERSION()"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+        reported = r.stdout.strip()
+        m = re.match(r"(\d+)\.(\d+)\.(\d+)", reported)
+        if r.returncode != 0 or not m:
+            raise RuntimeError(f"mysql version probe failed: {reported[:80]} {r.stderr[:120]}")
+        self.server_version, self.major = reported, int(m.group(1))
 
     def start(self, timeout=180):
         with socket.socket() as s:
@@ -336,14 +373,18 @@ class MySQLBox:
                                 "-e", "SELECT 1"], capture_output=True)
             ok_streak = ok_streak + 1 if (p.returncode == 0 and q.returncode == 0) else 0
             if ok_streak >= 3:          # 首次启动会中途重启, 单次探针会假阳
+                self.probe_version()
                 return self
             time.sleep(2)
         raise RuntimeError("mysql readiness timeout")
 
     def apply_sql(self, path):
-        with open(path, "rb") as f:
-            r = subprocess.run(["docker", "exec", "-i", self.name, "mysql", "-uroot",
-                                f"-p{self.pw}", self.db], stdin=f, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        with open(path, encoding="utf-8") as f:
+            sql = f.read()
+        if self.major < 8:
+            sql = mysql57_fixture_sql(os.path.basename(path), sql)
+        r = subprocess.run(["docker", "exec", "-i", self.name, "mysql", "-uroot",
+                            f"-p{self.pw}", self.db], input=sql, capture_output=True, text=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             raise RuntimeError(f"apply {os.path.basename(path)} failed: {r.stderr[:300]}")
 
@@ -959,7 +1000,8 @@ def suite_database(rep, work, image, run_id, keep_box=False):
         rep.rec(g, "access+inspect", "PASS" if rc1 == 0 and rc2 == 0 else "FAIL", f"rc={rc1},{rc2}")
         rc, v, out, errs = cli(fx, "database", "snapshot", "--source", "shop")
         snap_sha = v.get("source_snapshot_sha256") or ""
-        rep.rec(g, "snapshot", "PASS" if rc == 0 and snap_sha else "FAIL", out[:120] if not snap_sha else "")
+        rep.rec(g, "snapshot", "PASS" if rc == 0 and snap_sha else "FAIL",
+                out[:120] if not snap_sha else f"server={box.server_version}")
         rc, v, out, errs = cli(fx, "database", "baseline", "accept", "--source", "shop", "--snapshot-sha", snap_sha,
                                expect_ok=False)
         vol = os.path.exists(os.path.join(fx, "aoci.database.txt"))

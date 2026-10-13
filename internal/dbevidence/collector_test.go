@@ -21,6 +21,7 @@ type mockCatalogState struct {
 	pingErr                     error
 	queryErr                    error
 	openDriverName              string
+	mysqlVersion                string
 	openGaussVersion            string
 	openGaussDeployment         string
 	openGaussCompatibility      string
@@ -446,7 +447,11 @@ func mockOpenGaussResult(query string) ([]string, [][]driver.Value) {
 func mockMySQLResult(query string) ([]string, [][]driver.Value) {
 	switch query {
 	case mysqlFactsSQL:
-		return []string{"version", "lower_case_table_names"}, [][]driver.Value{{"8.4.0", int64(0)}}
+		version := "8.4.0"
+		if activeMockCatalogState.mysqlVersion != "" {
+			version = activeMockCatalogState.mysqlVersion
+		}
+		return []string{"version", "lower_case_table_names"}, [][]driver.Value{{version, int64(0)}}
 	case mysqlTablesSQL:
 		return []string{"table_schema", "table_name"}, [][]driver.Value{{"mysql", "user"}, {"aoci_test", "Order Items"}}
 	case mysqlColumnsSQL:
@@ -457,8 +462,11 @@ func mockMySQLResult(query string) ([]string, [][]driver.Value) {
 		return []string{"schema", "table", "name", "ordinal", "column", "ref_schema", "ref_table", "ref_column", "update", "delete"}, nil
 	case mysqlChecksSQL:
 		return []string{"schema", "table", "name", "check"}, nil
-	case mysqlIndexesSQL:
+	case mysqlIndexesSQL, mysqlIndexesPre8013SQL:
 		return []string{"schema", "table", "name", "non_unique", "position", "column", "expression", "prefix", "collation", "method", "visible"}, [][]driver.Value{{"aoci_test", "Order Items", "name_prefix", int64(1), int64(1), "select", nil, int64(12), "A", "BTREE", "NO"}}
+	case mysqlIndexesPre80SQL:
+		// What the 5.7 projection can answer: NULL AS EXPRESSION, 'YES' AS IS_VISIBLE.
+		return []string{"schema", "table", "name", "non_unique", "position", "column", "expression", "prefix", "collation", "method", "visible"}, [][]driver.Value{{"aoci_test", "Order Items", "name_prefix", int64(1), int64(1), "select", nil, int64(12), "A", "BTREE", "YES"}}
 	case mysqlPartitionsSQL:
 		return []string{"schema", "table", "name", "ordinal", "method", "expression", "description"}, nil
 	default:

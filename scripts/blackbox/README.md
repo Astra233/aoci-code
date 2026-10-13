@@ -132,7 +132,16 @@ Lifecycle, deterministic track only (no AI involved; `database` pulls
 python3 scripts/blackbox/mcp_lifecycle.py
 python3 scripts/blackbox/mcp_lifecycle.py --suites bringup,incremental,governance
 python3 scripts/blackbox/mcp_lifecycle.py --suites scale     # 453 objects, no Docker needed
+python3 scripts/blackbox/mcp_lifecycle.py --suites database --mysql-image mysql:5.7
 ```
+
+`--mysql-image mysql:5.7` runs the `database` suite against MySQL 5.7 with the
+same assertions. The frozen `repo-b` schema carries two statements 5.7 cannot
+parse, an `INVISIBLE` index and the `ALTER INDEX ... VISIBLE` that follows it
+in v2; the harness maps them in memory to their 5.7 shape (no index in v1, the
+index added in v2), so the fixture files stay frozen and the drift arithmetic
+is the same on both releases. The report records the server version the
+container reported next to the `snapshot` check.
 
 The `scale` suite first authors the 454 objects under the machine-default team
 batch (20 per Maintain, about 23 rolling rounds) and asserts every Maintain

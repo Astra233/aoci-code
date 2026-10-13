@@ -45,7 +45,7 @@ atomic.go[CG9L]: F:Provides durable replace CAS, create CAS, atomic writes, and 
 
 **The first index takes a while.** The agent reads every managed file and writes one entry per file: about an hour per 200,000 lines of code, depending on the model and the agent's speed. It runs in batches and resumes where it stopped if interrupted.
 
-**Have a database? Index it too.** MySQL and PostgreSQL are supported, and openGauss 6.0.5 with constraints. Build the code index first, then the database index. With code and table-level knowledge delivered together, the agent understands the system more completely.
+**Have a database? Index it too.** MySQL and PostgreSQL are supported, and openGauss 6.0.5 with constraints. MySQL means 5.7.6 and later; MariaDB is not supported. Build the code index first, then the database index. With code and table-level knowledge delivered together, the agent understands the system more completely.
 
 **Local only: read-only on your system, no Internet, no stored credentials.** AOCI-CODE reads your source code and database table structures, never business data. It writes its index files and its own state inside the project directory, plus the status page's registration in your user cache directory. It never reaches the Internet and uploads nothing: the only connections it opens are to the database you declare, for catalog metadata, and to its own loopback status page. Database credentials are referenced by environment-variable name and never stored. The index text is written locally by your own agent through the model channel you already use; AOCI-CODE adds no new data exit.
 
@@ -746,6 +746,13 @@ Explicit database command
 - Hostnames, usernames, DSNs, and credential values are never written into the index files.
 - Database Cognition apply runs offline and does not reconnect to the database while writing.
 - The program preserves and compares structural evidence, but the model still writes table responsibilities, relationships, and high-value constraints.
+
+MySQL support covers 5.7.6 and later. The collector reads the server version
+and runs only the catalog queries that release can answer: CHECK constraints
+from 8.0.16, index expressions from 8.0.13, index visibility from 8.0.0. A 5.7
+server records an empty check list, because 5.7 parses CHECK syntax and stores
+nothing; the evidence has the same shape on every supported release. MariaDB
+is not supported and is refused rather than read as MySQL.
 
 The initial openGauss profile is deliberately limited to openGauss 6.0.5 LTS
 in A/PG compatibility mode and ordinary non-partitioned base tables. Unsupported

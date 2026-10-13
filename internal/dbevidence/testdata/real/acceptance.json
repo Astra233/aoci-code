@@ -44,6 +44,20 @@
       }
     },
     {
+      "engine": "mysql",
+      "object_ref": "database://mysql57temp/aoci_test/accounts",
+      "canonical_evidence_ref": "testdata/real/mysql57_accounts.json",
+      "table_evidence_sha256": "c03595d75efad745d84aa9d6ba024977f3395fcdd0eef67d23f4c4c08fa0cba7",
+      "source_snapshot_sha256": "353d62e70f5f5327f5fb5836b5a25dd277c8d25d690a51d553d89074138d1723",
+      "table_count": 5,
+      "drift": {
+        "unchanged": 3,
+        "new": 1,
+        "changed": 1,
+        "removed": 1
+      }
+    },
+    {
       "engine": "postgresql",
       "object_ref": "database://pgtemp/aoci_d0/accounts",
       "canonical_evidence_ref": "testdata/real/postgresql_accounts.json",
