@@ -168,7 +168,7 @@ func readCognitionSnapshot(path string) (*cognition.CognitionSnapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := jsonstrict.RejectDuplicateKeys(data); err != nil {
+	if err := jsonstrict.RejectDuplicateKeysFold(data); err != nil {
 		return nil, err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))

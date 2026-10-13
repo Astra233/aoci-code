@@ -297,7 +297,7 @@ func LoadReceipt(root, batchID string) (Receipt, error) {
 		}
 		return Receipt{}, fmt.Errorf("code_candidate_receipt_unreadable")
 	}
-	if err := jsonstrict.RejectDuplicateKeys(data); err != nil {
+	if err := jsonstrict.RejectDuplicateKeysFold(data); err != nil {
 		return Receipt{}, err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))

@@ -109,8 +109,14 @@ func readArtifact(root, relative string) ([]byte, error) {
 	return os.ReadFile(abs)
 }
 
+// decodeStrict refuses duplicate keys under encoding/json's case-insensitive
+// struct-field matching before any onboarding artifact is decoded. Session's
+// one map-typed field, candidate_asset_identities, is keyed by the fixed
+// lowercase asset IDs the planner emits (root, meta, and each target kind),
+// so a case-only collision inside it is never legitimate and the fold rule
+// is applied to that subtree as well.
 func decodeStrict(data []byte, target any) error {
-	if err := jsonstrict.RejectDuplicateKeys(data); err != nil {
+	if err := jsonstrict.RejectDuplicateKeysFold(data); err != nil {
 		return err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))

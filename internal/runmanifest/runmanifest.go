@@ -168,7 +168,7 @@ func Load(root, runID string) (*Manifest, error) {
 
 // Decode validates JSON shape and identity while retaining legacy optionality.
 func Decode(data []byte, expectedRunID string) (*Manifest, error) {
-	if err := jsonstrict.RejectDuplicateKeys(data); err != nil {
+	if err := jsonstrict.RejectDuplicateKeysFold(data); err != nil {
 		return nil, fmt.Errorf("manifest 损坏(run %s): %w", expectedRunID, err)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -458,7 +458,7 @@ func loadStoredGovernanceReceipt(
 }
 
 func decodeStrictEvidence(data []byte, target any) error {
-	if err := jsonstrict.RejectDuplicateKeys(data); err != nil {
+	if err := jsonstrict.RejectDuplicateKeysFold(data); err != nil {
 		return err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))

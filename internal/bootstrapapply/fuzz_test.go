@@ -1,5 +1,5 @@
 // Native fuzz target for the strict Bootstrap codec: every persisted D2-B
-// artifact is decoded through jsonstrict.RejectDuplicateKeys plus a decoder
+// artifact is decoded through jsonstrict.RejectDuplicateKeysFold plus a decoder
 // that refuses unknown fields and trailing values. Run it with
 //
 //	go test -run '^$' -fuzz '^FuzzStrictDecode$' -fuzztime=30s ./internal/bootstrapapply
@@ -140,8 +140,8 @@ func FuzzStrictDecode(f *testing.F) {
 				continue
 			}
 			admitted++
-			if jsonstrict.RejectDuplicateKeys(data) != nil {
-				t.Fatalf("%s admitted a document with a duplicate key", decoder.name)
+			if jsonstrict.RejectDuplicateKeysFold(data) != nil {
+				t.Fatalf("%s admitted a document with a duplicate or case-colliding key", decoder.name)
 			}
 			if !json.Valid(data) {
 				t.Fatalf("%s admitted invalid JSON", decoder.name)

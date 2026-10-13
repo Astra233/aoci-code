@@ -180,6 +180,9 @@ func TestDecodeFailsClosedOnShapeIdentityAndEmbeddedProofs(t *testing.T) {
 		want  string
 	}{
 		{"duplicate key", strings.Replace(data, "{", "{\"kind\":\"entries\",", 1), runID, "JSON字段重复"},
+		// encoding/json would match "Kind" to the kind field and let the later
+		// spelling win silently; the fold scanner names both spellings instead.
+		{"case-only duplicate key", strings.Replace(data, "{", "{\"Kind\":\"header\",", 1), runID, "JSON字段重复: kind (与 Kind 仅大小写不同)"},
 		{"unknown field", strings.Replace(data, "{", "{\"unknown\":1,", 1), runID, "JSON解析失败"},
 		{"trailing object", data + "{}", runID, "只能包含一个顶层对象"},
 		{"trailing garbage", data + "x", runID, "尾随内容"},

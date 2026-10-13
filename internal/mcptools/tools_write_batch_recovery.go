@@ -126,7 +126,7 @@ func loadAtomicBatchRecovery(root, batchKey string) (*atomicBatchRecovery, error
 }
 
 func decodeAtomicBatchRecovery(data []byte, batchKey string) (*atomicBatchRecovery, error) {
-	if err := jsonstrict.RejectDuplicateKeys(data); err != nil {
+	if err := jsonstrict.RejectDuplicateKeysFold(data); err != nil {
 		return nil, err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
