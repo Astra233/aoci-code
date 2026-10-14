@@ -13,9 +13,9 @@
     "make verify"
    ],
    "last_verified": {
-    "version": "v0.1.0-rc20",
-    "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
+    "version": "v0.1.0-rc21",
+    "date": "2026-10-15",
+    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
    }
   },
   {
@@ -31,9 +31,9 @@
     "make verify"
    ],
    "last_verified": {
-    "version": "v0.1.0-rc20",
-    "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
+    "version": "v0.1.0-rc21",
+    "date": "2026-10-15",
+    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
    }
   },
   {
@@ -50,9 +50,9 @@
     "make verify"
    ],
    "last_verified": {
-    "version": "v0.1.0-rc20",
-    "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
+    "version": "v0.1.0-rc21",
+    "date": "2026-10-15",
+    "evidence": ".aoci/dev-tools/conformance-rc21-aligned.txt"
    }
   },
   {
@@ -70,9 +70,9 @@
     "make verify"
    ],
    "last_verified": {
-    "version": "v0.1.0-rc20",
-    "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
+    "version": "v0.1.0-rc21",
+    "date": "2026-10-15",
+    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
    }
   },
   {
@@ -87,9 +87,9 @@
     "make verify"
    ],
    "last_verified": {
-    "version": "v0.1.0-rc20",
-    "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
+    "version": "v0.1.0-rc21",
+    "date": "2026-10-15",
+    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
    }
   },
   {
@@ -105,9 +105,9 @@
     "make verify"
    ],
    "last_verified": {
-    "version": "v0.1.0-rc20",
-    "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
+    "version": "v0.1.0-rc21",
+    "date": "2026-10-15",
+    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
    }
   },
   {
@@ -169,9 +169,9 @@
     "release-rehearsal.yml"
    ],
    "last_verified": {
-    "version": "v0.1.0-rc20",
-    "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
+    "version": "v0.1.0-rc21",
+    "date": "2026-10-15",
+    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
    }
   },
   {
@@ -184,9 +184,9 @@
    ],
    "runs_in": [],
    "last_verified": {
-    "version": "v0.1.0-rc20",
-    "date": "2026-10-09",
-    "evidence": ".aoci/dev-tools/realrepo-rc20.txt RuoYi 26 rounds 23924 B, excalidraw 34 rounds 23862 B"
+    "version": "v0.1.0-rc21",
+    "date": "2026-10-15",
+    "evidence": ".aoci/dev-tools/realrepo-rc21.txt"
    }
   },
   {
@@ -281,9 +281,9 @@
     "full-confidence.yml"
    ],
    "last_verified": {
-    "version": "v0.1.0-rc20",
-    "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
+    "version": "v0.1.0-rc21",
+    "date": "2026-10-15",
+    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
    }
   },
   {
@@ -314,9 +314,9 @@
     "ci.yml"
    ],
    "last_verified": {
-    "version": "v0.1.0-rc20",
-    "date": "2026-10-13",
-    "evidence": "make verify BUILD_BIN=build/aoci-rc21dev on aebdd7a+gov (.aoci/dev-tools/make-verify-issuebatch.txt)"
+    "version": "v0.1.0-rc21",
+    "date": "2026-10-15",
+    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
    }
   }
  ]
