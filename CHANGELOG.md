@@ -2,7 +2,14 @@
 
 All notable public changes to AOCI-CODE will be documented in this file.
 
-## Unreleased
+## v0.1.0-rc21
+
+Eight user reports, four contributed pull requests, and a test-system
+upgrade: Volume removal keyed on the object's path, a Ledger that survives a
+damaged line, activation that answers `already_aligned`, governed writes on
+WSL DrvFs, MySQL 5.7.6 and later, localized refusals, private host-config
+backups with a guarded status page, and a command tree that starts in
+milliseconds instead of half a second.
 
 - Host-configuration backups are owner-only. The optional model client
   refuses redirects and credential-bearing base URLs, keeps a caller-owned
@@ -14,6 +21,17 @@ All notable public changes to AOCI-CODE will be documented in this file.
   in Authorization headers. The static shell contains no capability or
   repository data. Registrations keep their existing shape; a legacy page
   can be stopped but must be stopped before a new detach replaces it.
+- An out-of-band edit to a formal Volume under Managed Scope still fails
+  closed with `managed_scope_formal_volume_baseline_drift`, and the refusal
+  now says how to recover: preserve the state, check pending Recovery through
+  the Guide, restore a verified matching snapshot when there is none, and
+  never edit Baseline hashes. The Legacy `baseline scope` refusal names the
+  same route, and `docs/troubleshooting.md` gains the section (#123).
+- A Codex config declaring `[mcp_servers."aoci"]` or `[mcp_servers.'aoci']`
+  was reported as not installed and then given a duplicate bare table. The
+  installer and the status predicate recognize the quoted spellings, optional
+  whitespace, and a trailing comment, and leave such a config byte-for-byte
+  unchanged.
 - Every `aoci` invocation built its command tree by decoding the embedded
   localization manifest once per localized flag, several hundred times, about
   half a second before the first byte of output. The decoded manifest is now
