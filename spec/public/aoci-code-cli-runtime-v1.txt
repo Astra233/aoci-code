@@ -41,8 +41,9 @@ implementation detail of the same binary, not a public contract; Hosts keep
 reading `capabilities` and the Guide.
 `aoci ui --detach` starts the page as its own session, detached from the
 calling shell, prints its URL once the page is listening, and returns; a page
-already registered and answering for the repository is reused rather than
-duplicated. `aoci ui --stop` ends the registered page, proving liveness through
+already registered and answering for the repository is reused when this
+version started it; a tokenless page from an older binary is refused, by
+`--detach` and by a foreground start alike, until `aoci ui --stop` ends it. `aoci ui --stop` ends the registered page, proving liveness through
 the page itself before any signal is sent. Registrations live in the user's
 cache directory (or AOCI_UI_REGISTRY_DIR), never in the repository.
 
@@ -64,12 +65,14 @@ State and writes
 
 Optional model requests use the final configured HTTP(S) base URL and never
 follow redirects. URL user information, query strings and fragments are
-refused by the client. Error diagnostics retain category and HTTP status,
-not arbitrary endpoint response bodies or formatted transport causes; this
-also applies to failure notes persisted by endpoint-native drafting.
+refused by the client. Error diagnostics retain the category, the HTTP status, and a sanitized
+cause class (dns, refused, reset, unreachable, tls, timeout, redirect), not
+arbitrary endpoint response bodies or formatted transport causes; this also
+applies to failure notes persisted by endpoint-native drafting.
 
-Host-configuration backups are published with owner-only file permissions.
-On Windows, directory ACLs remain the operating-system access boundary.
+Backups written beside host configuration and formal assets are published
+with owner-only file permissions. On Windows, directory ACLs remain the
+operating-system access boundary.
 
 Command help and the live Guide identify whether an operation is observational,
 prepares a candidate, requires human interaction, or can update formal assets.

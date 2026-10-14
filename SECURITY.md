@@ -38,9 +38,9 @@ remediation and disclosure, and publish guidance when disclosure is safe.
   Endpoint error bodies and transport details are not formatted into errors
   that callers may log or persist. Endpoint URLs cannot contain credentials,
   query strings, or fragments.
-- Host-configuration backups use owner-only file permissions. This protects
-  configuration content independently of Git ignore rules; on Windows,
-  restrict access to the containing directory with the operating system ACL.
+- Backups written beside host configuration and formal assets use owner-only
+  file permissions, independently of Git ignore rules; on Windows, restrict
+  access to the containing directory with the operating system ACL.
 - The optional loopback status page requires a fresh per-process capability
   for repository data. Its printed URL and private user-cache registration
   carry that capability; do not share them or put them into public logs.

@@ -2,7 +2,15 @@
 // 职责: 把端点调用失败分类为可被上层区分处理的类型(决定重试/提示用户/放弃)。
 package llm
 
-import "fmt"
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"fmt"
+	"net"
+	"syscall"
+)
 
 // Kind 是错误类别。上层可据此决定重试策略与面向用户的提示。
 type Kind int
@@ -67,6 +75,55 @@ func (e *Error) Error() string {
 	// Transport errors may contain URLs, credentials, headers or response
 	// fragments. Preserve Unwrap for classification, never format that cause.
 	return base
+}
+
+// CauseClass names the transport cause of err without any of its text: dns,
+// refused, reset, unreachable, tls, timeout, or "" when none applies. The
+// class is the only cause detail an interactive command may show, because the
+// wrapped error can carry hosts, URLs, or credentials.
+func CauseClass(err error) string {
+	if err == nil {
+		return ""
+	}
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return "dns"
+	}
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return "refused"
+	}
+	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) {
+		return "reset"
+	}
+	if errors.Is(err, syscall.EHOSTUNREACH) || errors.Is(err, syscall.ENETUNREACH) {
+		return "unreachable"
+	}
+	var verification *tls.CertificateVerificationError
+	var unknownAuthority x509.UnknownAuthorityError
+	var hostname x509.HostnameError
+	var invalid x509.CertificateInvalidError
+	var record tls.RecordHeaderError
+	if errors.As(err, &verification) || errors.As(err, &unknownAuthority) || errors.As(err, &hostname) ||
+		errors.As(err, &invalid) || errors.As(err, &record) {
+		return "tls"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return "timeout"
+	}
+	return ""
+}
+
+// Cause is CauseClass over the wrapped error, plus redirect for a 3xx answer
+// the client refused to follow.
+func (e *Error) Cause() string {
+	if e.StatusCode >= 300 && e.StatusCode < 400 {
+		return "redirect"
+	}
+	return CauseClass(e.Err)
 }
 
 // Unwrap 支持 errors.Is/As 向下解包底层错误。

@@ -122,6 +122,7 @@
     </div>
   </div>
   <div class="row stats" id="stats"></div>
+  <div class="note" id="access-note" hidden></div>
 </header>
 <main>
   <section id="index-pane">
@@ -246,10 +247,14 @@
     $("aside").style.maxHeight = Math.max(240, window.innerHeight - top - 16) + "px";
   }
 
+  // Every data route answers 401 without the capability from the readiness
+  // link's fragment; say so instead of rendering empty chrome.
+  function showAccessNote(hidden){ const n = $("access-note"); if (n){ if (!hidden) n.textContent = t("ui.page.unauthorized"); n.hidden = !!hidden; } }
   async function loadRepos(){
     try {
       const r = await apiFetch("/api/repos");
-      if (!r.ok) return;
+      if (!r.ok){ if (r.status === 401) showAccessNote(false); return; }
+      showAccessNote(true);
       const next = await r.json();
       if (!Array.isArray(next) || !next.every(r => r && typeof r.root === "string" && r.root !== "" &&
           typeof r.name === "string" && Number.isInteger(r.running) && r.running >= 0)) return;
@@ -271,7 +276,7 @@
         if (!rawCache.has(JSON.stringify([root, asset]))) renderRaw();
         return;
       }
-      if (!r.ok) throw new Error("state HTTP " + r.status);
+      if (!r.ok){ if (r.status === 401) showAccessNote(false); throw new Error("state HTTP " + r.status); }
       const next = await r.json();
       if (!isCurrent()) return;
       etag = r.headers.get("ETag") || ""; snap = next; rawCache = new Map();

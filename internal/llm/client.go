@@ -151,6 +151,10 @@ func (c *Client) Complete(ctx context.Context, req CompletionRequest) (*Completi
 	// Keep only the status classification; callers persist these errors.
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		kind := classifyHTTPStatus(resp.StatusCode)
+		if resp.StatusCode < 400 {
+			// Redirects are never followed; the base URL must be the final address.
+			return nil, &Error{Kind: kind, Message: "端点返回重定向,未跟随", StatusCode: resp.StatusCode}
+		}
 		return nil, &Error{Kind: kind, Message: "端点返回非成功状态", StatusCode: resp.StatusCode}
 	}
 

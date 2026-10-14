@@ -518,14 +518,18 @@ and removes it from the address bar when session storage is available. Do not
 share the readiness link. A legacy page can still be stopped, but a new detach
 command refuses to replace its registration while it is live: run
 `aoci ui --stop` for that repository first. Only authenticated pages are reused.
-Before downgrading, stop the page
-using the same binary that started it.
+If the browser shows the access notice instead of the index, open the
+complete printed link: `--open` on some systems hands the browser the URL
+without its fragment. Before downgrading, stop the page using the same binary
+that started it.
 
 ## Model endpoint refusals
 
 Configure the final HTTP(S) completion base URL directly. The optional model
 client does not follow redirects, and base URLs with user information, query
 strings or fragments are refused. Authentication remains in the configured
-credential environment variable. Error output keeps the HTTP status and error
-category, but omits the endpoint's arbitrary error text and transport detail;
-diagnose those details in the provider's own protected logs.
+credential environment variable. Error output keeps the HTTP status, the error
+category, and a sanitized cause class (dns, refused, reset, unreachable, tls,
+timeout, redirect), but omits the endpoint's own error text and the raw
+transport error. For a provider-side rejection read the provider's logs; for a
+connection failure check the address, port, DNS name, and certificate directly.

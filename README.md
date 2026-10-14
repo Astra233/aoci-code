@@ -615,7 +615,7 @@ The page switches between Chinese and English; the refresh interval is selectabl
 | Command | What it does |
 |---|---|
 | `aoci ui --open` | Start in the foreground and open the browser; Ctrl+C stops it |
-| `aoci ui --detach --json` | Start in the background, detached from this shell, print the link, and return at once; a panel already running for this repository is reused |
+| `aoci ui --detach --json` | Start in the background, detached from this shell, print the link, and return at once; a panel already running for this repository is reused when this version started it; an older panel must be stopped first |
 | `aoci ui --stop` | Stop this repository's background panel |
 | `aoci ui --also /path/to/other` | Show another repository on the same page |
 

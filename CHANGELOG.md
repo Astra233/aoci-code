@@ -11,16 +11,19 @@ WSL DrvFs, MySQL 5.7.6 and later, localized refusals, private host-config
 backups with a guarded status page, and a command tree that starts in
 milliseconds instead of half a second.
 
-- Host-configuration backups are owner-only. The optional model client
-  refuses redirects and credential-bearing base URLs, keeps a caller-owned
-  HTTP client's own redirect policy, and reports status and category
-  diagnostics without the endpoint's error body or the transport cause. No
-  MCP or formal-asset schema changes.
+- Backups written beside host configuration and formal assets are owner-only.
+  The optional model client refuses redirects and credential-bearing base
+  URLs, keeps a caller-owned HTTP client's own redirect policy, and reports
+  the status, the category, and a sanitized cause class (dns, refused, tls,
+  timeout, redirect) without the endpoint's error body or the transport
+  cause. No MCP or formal-asset schema changes.
 - The loopback status page protects repository data with a per-process
   capability carried in the readiness URL fragment and sent by the browser
   in Authorization headers. The static shell contains no capability or
-  repository data. Registrations keep their existing shape; a legacy page
-  can be stopped but must be stopped before a new detach replaces it.
+  repository data, and a page opened without the fragment says which link
+  to open instead of rendering empty. Registrations keep their existing
+  shape; a tokenless page from an older binary can be stopped but is refused
+  by a new start, foreground or detached, until `aoci ui --stop` ends it.
 - An out-of-band edit to a formal Volume under Managed Scope still fails
   closed with `managed_scope_formal_volume_baseline_drift`, and the refusal
   now says how to recover: preserve the state, check pending Recovery through

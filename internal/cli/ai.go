@@ -425,20 +425,36 @@ func renderAIFailureHint(cfg *config.Config, err error) string {
 		}
 		return cliMessage("ai.failure.auth", cfg.AI.APIKeyEnv, localeSafeCLIDetail(e.Error()))
 	case llm.KindNetwork:
-		return cliMessage("ai.failure.network", cfg.AI.BaseURL, localeSafeCLIDetail(e.Error()))
+		return cliMessage("ai.failure.network", cfg.AI.BaseURL, aiFailureDetail(e))
 	case llm.KindTimeout:
 		cur := cliMessage("ai.failure.timeout_default")
 		if cfg.AI.TimeoutSeconds > 0 {
 			cur = cliMessage("ai.failure.timeout_configured", cfg.AI.TimeoutSeconds)
 		}
-		return cliMessage("ai.failure.timeout", cur, localeSafeCLIDetail(e.Error()))
+		return cliMessage("ai.failure.timeout", cur, aiFailureDetail(e))
 	case llm.KindRateLimit:
-		return cliMessage("ai.failure.rate_limit", localeSafeCLIDetail(e.Error()))
+		return cliMessage("ai.failure.rate_limit", aiFailureDetail(e))
 	case llm.KindServer:
-		return cliMessage("ai.failure.server", localeSafeCLIDetail(e.Error()))
+		return cliMessage("ai.failure.server", aiFailureDetail(e))
 	default:
-		return cliMessage("ai.failure.generic", localeSafeCLIDetail(e.Error()))
+		return cliMessage("ai.failure.generic", aiFailureDetail(e))
 	}
+}
+
+// aiFailureDetail renders the llm error plus its sanitized cause class: the
+// transport cause itself is never formatted (it can carry hosts, URLs, or
+// credentials), but dns, refused, tls, timeout, or a refused redirect is what
+// a person probing an endpoint needs to know.
+func aiFailureDetail(e *llm.Error) string {
+	detail := localeSafeCLIDetail(e.Error())
+	switch cause := e.Cause(); cause {
+	case "":
+	case "redirect":
+		detail += " " + cliMessage("ai.failure.redirect", e.StatusCode)
+	default:
+		detail += " " + cliMessage("ai.failure.cause", cause)
+	}
+	return detail
 }
 
 // printTestFailureHint 依据错误类别打印可操作的排查提示(renderAIFailureHint 薄壳)。

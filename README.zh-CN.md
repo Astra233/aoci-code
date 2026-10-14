@@ -591,7 +591,7 @@ Codex `--hooks` 把压缩handoff限制为receipt身份、未完成write或Recove
 | 命令 | 作用 |
 |---|---|
 | `aoci ui --open` | 前台启动并打开浏览器；Ctrl+C 退出 |
-| `aoci ui --detach --json` | 后台启动（脱离当前 shell），打印链接后立即返回；本仓库已有面板在运行时直接复用它的链接 |
+| `aoci ui --detach --json` | 后台启动（脱离当前 shell），打印链接后立即返回；本仓库已有本版本启动的面板时直接复用它的链接；旧版本的面板要先 --stop |
 | `aoci ui --stop` | 停止本仓库的后台面板 |
 | `aoci ui --also /path/to/other` | 同一页面里再看另一个仓库 |
 
