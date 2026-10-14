@@ -133,9 +133,9 @@
    ],
    "runs_in": [],
    "last_verified": {
-    "version": "v0.1.0-rc20",
-    "date": "2026-10-10",
-    "evidence": ".aoci/dev-tools/axis-rc20-release.txt RESULT: 144 passed"
+    "version": "v0.1.0-rc21",
+    "date": "2026-10-15",
+    "evidence": ".aoci/dev-tools/axis-rc21-release.txt"
    }
   },
   {
