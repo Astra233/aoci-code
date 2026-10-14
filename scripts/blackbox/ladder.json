@@ -15,7 +15,7 @@
    "last_verified": {
     "version": "v0.1.0-rc21",
     "date": "2026-10-15",
-    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
+    "evidence": ".aoci/dev-tools/make-verify-phase1b.txt"
    }
   },
   {
@@ -33,7 +33,7 @@
    "last_verified": {
     "version": "v0.1.0-rc21",
     "date": "2026-10-15",
-    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
+    "evidence": ".aoci/dev-tools/make-verify-phase1b.txt"
    }
   },
   {
@@ -52,7 +52,7 @@
    "last_verified": {
     "version": "v0.1.0-rc21",
     "date": "2026-10-15",
-    "evidence": ".aoci/dev-tools/conformance-rc21-aligned.txt"
+    "evidence": ".aoci/dev-tools/make-verify-phase1b.txt"
    }
   },
   {
@@ -72,7 +72,7 @@
    "last_verified": {
     "version": "v0.1.0-rc21",
     "date": "2026-10-15",
-    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
+    "evidence": ".aoci/dev-tools/make-verify-phase1b.txt"
    }
   },
   {
@@ -89,7 +89,7 @@
    "last_verified": {
     "version": "v0.1.0-rc21",
     "date": "2026-10-15",
-    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
+    "evidence": ".aoci/dev-tools/make-verify-phase1b.txt"
    }
   },
   {
@@ -107,7 +107,7 @@
    "last_verified": {
     "version": "v0.1.0-rc21",
     "date": "2026-10-15",
-    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
+    "evidence": ".aoci/dev-tools/make-verify-phase1b.txt"
    }
   },
   {
@@ -171,7 +171,7 @@
    "last_verified": {
     "version": "v0.1.0-rc21",
     "date": "2026-10-15",
-    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
+    "evidence": ".aoci/dev-tools/make-verify-phase1b.txt"
    }
   },
   {
@@ -283,7 +283,7 @@
    "last_verified": {
     "version": "v0.1.0-rc21",
     "date": "2026-10-15",
-    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
+    "evidence": ".aoci/dev-tools/make-verify-phase1b.txt"
    }
   },
   {
@@ -316,7 +316,7 @@
    "last_verified": {
     "version": "v0.1.0-rc21",
     "date": "2026-10-15",
-    "evidence": ".aoci/dev-tools/make-verify-phase1.txt"
+    "evidence": ".aoci/dev-tools/make-verify-phase1b.txt"
    }
   }
  ]
