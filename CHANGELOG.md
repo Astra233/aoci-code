@@ -4,6 +4,16 @@ All notable public changes to AOCI-CODE will be documented in this file.
 
 ## Unreleased
 
+- Host-configuration backups are owner-only. The optional model client
+  refuses redirects and credential-bearing base URLs, keeps a caller-owned
+  HTTP client's own redirect policy, and reports status and category
+  diagnostics without the endpoint's error body or the transport cause. No
+  MCP or formal-asset schema changes.
+- The loopback status page protects repository data with a per-process
+  capability carried in the readiness URL fragment and sent by the browser
+  in Authorization headers. The static shell contains no capability or
+  repository data. Registrations keep their existing shape; a legacy page
+  can be stopped but must be stopped before a new detach replaces it.
 - Every `aoci` invocation built its command tree by decoding the embedded
   localization manifest once per localized flag, several hundred times, about
   half a second before the first byte of output. The decoded manifest is now
